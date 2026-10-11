@@ -16,7 +16,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 ENV_FILE="$REPO_ROOT/.env"
 
-GUAC_BASE="${GUAC_BASE:-http://127.0.0.1:8081}"
+GUAC_BASE="${GUAC_BASE:-http://127.0.0.1:8081/guacamole}"
 CONN_NAME="kerryos-guest"
 
 require() {
