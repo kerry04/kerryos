@@ -24,6 +24,10 @@
     <property name="plugin-1" type="string" value="whiskermenu">
       <property name="button-title" type="string" value="KerryOS"/>
       <property name="show-button-title" type="bool" value="true"/>
+      <!-- Win7-style start orb. Icon name resolves via hicolor icon theme
+           (guest/orb-assets/gen-orb-icons.sh output). -->
+      <property name="button-icon" type="string" value="kerryos-start"/>
+      <property name="button-icon-use-legacy" type="bool" value="false"/>
     </property>
     <property name="plugin-2" type="string" value="tasklist"/>
     <property name="plugin-3" type="string" value="separator">

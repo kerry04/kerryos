@@ -61,11 +61,21 @@ COPY policies.json /usr/lib/firefox/distribution/policies.json
 COPY aero-theme/xfwm4/ /usr/share/themes/KerryAero/xfwm4/
 COPY wallpaper/wallpaper/kerryos-wallpaper.png /opt/kerryos/wallpaper.png
 COPY boot-splash/kerryos-start /opt/kerryos/boot-splash/kerryos-start
+# Win7-style start orb for the Whisker menu button (per-size hicolor icons).
+COPY orb-assets/hicolor/ /usr/share/icons/hicolor/
 RUN chmod +x /entrypoint.sh \
     && chmod +x /opt/kerryos/skel/Desktop/*.desktop \
     && chmod +x /opt/kerryos/boot-splash/kerryos-start \
     && chmod -R a+r /usr/share/themes/KerryAero /opt/kerryos/wallpaper.png \
+                      /usr/share/icons/hicolor/16x16/apps/kerryos-start.png \
+                      /usr/share/icons/hicolor/22x22/apps/kerryos-start.png \
+                      /usr/share/icons/hicolor/24x24/apps/kerryos-start.png \
+                      /usr/share/icons/hicolor/32x32/apps/kerryos-start.png \
+                      /usr/share/icons/hicolor/48x48/apps/kerryos-start.png \
     && chown -R visitor:visitor /opt/kerryos/skel /entrypoint.sh
+
+# hicolor icon cache so GtkIconTheme resolves kerryos-start immediately.
+RUN gtk-update-icon-cache -f /usr/share/icons/hicolor/ 2>/dev/null || true
 
 USER visitor
 WORKDIR /home/visitor

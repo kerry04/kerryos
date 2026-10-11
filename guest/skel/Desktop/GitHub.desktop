@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=GitHub
+Comment=See how this desktop works — KerryOS is open source
+Exec=firefox https://github.com/kerry04/kerryos
+Icon=web-browser
+Terminal=false
+StartupNotify=false

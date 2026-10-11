@@ -118,3 +118,15 @@ curl -s http://127.0.0.1:8080/api/health; echo
 
 Remaining Phase 3 polish (not blocking): richer boot animation frames, Win7
 mkmenu/thunar theming, guest app portfolio beyond 3 icons, monitoring.
+
+---
+
+## Phase 3 polish — 2026-10-11 21:40 UTC
+
+| Piece | State |
+|---|---|
+| Boot splash V2: phased progress bar (xsetroot + convert, xmessage dropped — not in noble) | ✅ built, bash-syntax verified, ships in guest |
+| Win7 start orb (5 hicolor sizes, code-generated) wired to Whisker button | ✅ built, icon files verified in image |
+| Desktop icon: GitHub (kerry04/kerryos) | ✅ in skeleton |
+| Monitoring: broker/audit-review.sh weekly reviewer | ✅ runs on real audit log — 18 sessions, 1.7/hr, 0 flags |
+| Guest image rebuilt | ✅ kerryos/guest:latest (bash-syntax verified inside) |
