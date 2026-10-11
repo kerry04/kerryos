@@ -21,9 +21,12 @@ services:
         ipv4_address: 172.28.0.70
 
   guacd:
-    # Official guacamole/guacd is AMD64-only (crash-loops on ARM64).
-    # linuxserver.io's build is the same guacd, multi-arch incl. arm64.
-    image: lscr.io/linuxserver/guacd:latest
+    # Both prebuilt guacd images fail on ARM64: official guacamole/guacd:1.5.5
+    # is AMD64-only (exec format error), and lscr.io/linuxserver/guacd:latest
+    # ships without a working guacd binary (4822 never opens). Built instead
+    # from the Apache 1.5.5 source tarball (vendored, sha256-verified).
+    build: ./guacd-arm64
+    image: kerryos/guacd-arm64:1.5.5
     restart: unless-stopped
     ports:
       - "127.0.0.1:4822:4822"
@@ -44,7 +47,9 @@ services:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - ./guacamole/guacamole.properties:/etc/guacamole/guacamole.properties:ro
+      # Entry script renders the ${VAR}-templated properties at container start
+      # (Guacamole 1.5.5 alone does not expand them).
+      - ./guacamole/guacamole.properties.template:/etc/guacamole/guacamole.properties.template:ro
     networks:
       br-kerryos:
         ipv4_address: 172.28.0.30

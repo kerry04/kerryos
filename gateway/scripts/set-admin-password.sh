@@ -45,7 +45,7 @@ CURRENT_PASSWORD="${GUAC_CURRENT_PASSWORD:-$GUAC_ADMIN_PASSWORD}"
 TOKEN_JSON="$(curl -sS -X POST "$GUAC_BASE/api/tokens" \
   --data-urlencode "username=$GUAC_ADMIN_USER" \
   --data-urlencode "password=$CURRENT_PASSWORD")"
-TOKEN="$(python3 -c "import json,sys; print(json.load(sys.stdin)['authToken'])" <<<"$TOKEN_JSON")"
+TOKEN="$(printf '%s' "$TOKEN_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('authToken',''))")"
 if [[ -z "$TOKEN" || "$TOKEN" == "None" ]]; then
   echo "ERROR: login failed with the current password." >&2
   echo "If you already rotated it, set GUAC_CURRENT_PASSWORD=<old password> in the environment and re-run." >&2
@@ -53,23 +53,25 @@ if [[ -z "$TOKEN" || "$TOKEN" == "None" ]]; then
 fi
 
 USER_URL="$GUAC_BASE/api/session/data/postgresql/users/$GUAC_ADMIN_USER?token=$TOKEN"
-USER_JSON="$(curl -sS "$USER_URL")"
-UPDATED_JSON="$(NEW_PASSWORD="$GUAC_ADMIN_PASSWORD" python3 - <<'PYEOF'
-import json, os, sys
-user = json.load(sys.stdin)
-user["password"] = os.environ["NEW_PASSWORD"]
-print(json.dumps(user))
-PYEOF
-<<<"$USER_JSON")"
 
-curl -sS -o /dev/null -X PUT -H 'Content-Type: application/json' \
-  -d "$UPDATED_JSON" "$USER_URL"
+# Changing your OWN password requires the dedicated /password endpoint
+# (PUT of a full user object on yourself is rejected with 403 by
+# guacamole-auth-jdbc 1.5.5, even for the ADMINISTER system permission).
+curl -sS -o /tmp/guac_pw_resp.$$ -X PUT -H 'Content-Type: application/json' \
+  -d "{\"oldPassword\":\"$CURRENT_PASSWORD\",\"newPassword\":\"$GUAC_ADMIN_PASSWORD\"}" \
+  "$USER_URL/password"
+HTTP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' "$USER_URL")
+HTTP_CODE=$(curl -sS -o /dev/null -w '%{http_code}' "$USER_URL/password")
+if [ -s /tmp/guac_pw_resp.$$ ] && grep -q 'Error' /tmp/guac_pw_resp.$$ 2>/dev/null; then
+  cat /tmp/guac_pw_resp.$$ >&2
+fi
+rm -f /tmp/guac_pw_resp.$$
 
 # Verify: a fresh token with the new password proves the rotation worked.
 VERIFY_JSON="$(curl -sS -X POST "$GUAC_BASE/api/tokens" \
   --data-urlencode "username=$GUAC_ADMIN_USER" \
   --data-urlencode "password=$GUAC_ADMIN_PASSWORD")"
-VERIFY_TOKEN="$(python3 -c "import json,sys; print(json.load(sys.stdin).get('authToken',''))" <<<"$VERIFY_JSON")"
+VERIFY_TOKEN="$(printf '%s' "$VERIFY_JSON" | python3 -c "import json,sys; print(json.load(sys.stdin).get('authToken',''))")"
 
 if [[ -z "$VERIFY_TOKEN" ]]; then
   echo "ERROR: verification login failed after password update." >&2

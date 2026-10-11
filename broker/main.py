@@ -40,6 +40,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import docker
+import docker.types as t
 import httpx
 from docker.errors import NotFound as DockerNotFound
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -68,7 +69,8 @@ GUAC_BASE = "http://guacamole:8080/guacamole"  # inside the compose network:
 # port on 127.0.0.1, unreachable from inside the network).
 CONTAINER_NAME = "kerryos-session"
 GUEST_IMAGE = "kerryos/guest:latest"
-DOCKER_NETWORK = "br-kerryos"
+DOCKER_NETWORK = "kerryos_br-kerryos"  # compose prefixes the network with the project name
+DOCKER_API_VERSION = "1.56"  # EndpointConfig requires an explicit version arg
 GUEST_IP = "172.28.0.10"
 GUEST_VNC_PORT = 5901
 SQUID_PROXY = "http://172.28.0.20:3128"
@@ -301,13 +303,30 @@ def spawn_guest(vnc_password: str):
             image=GUEST_IMAGE,
             name=CONTAINER_NAME,
             detach=True,
-            remove=True,  # --rm: never leave a stopped container behind
-            network_mode="none",  # attach to br-kerryos explicitly below
+            # --rm equivalent: never leave a stopped container behind.
+            # NB: docker SDK 7.x create() rejects remove= (despite the docstring
+            # claiming run() compatibility); auto_remove is the HostConfig flag
+            # run() itself translates remove= into.
+            auto_remove=True,
+            network="kerryos_br-kerryos",  # created by gateway compose
+            networking_config={
+                "kerryos_br-kerryos": t.EndpointConfig(
+                    version=DOCKER_API_VERSION,
+                    ipv4_address=GUEST_IP,  # reserved static IP the Guacamole conn targets
+                ),
+            },
             nano_cpus=1_000_000_000,  # --cpus=1
             mem_limit="2g",  # --memory=2g
             pids_limit=256,  # --pids-limit=256
             read_only=True,  # --read-only
-            tmpfs={"/home/visitor": "", "/tmp": "", "/run": ""},
+            # uid/gid 1001 = the `visitor` user: bare tmpfs mounts would be
+            # root-owned, and the entrypoint's $HOME seed would fail with
+            # EPERM on every write. "uid=...,gid=..." mounts $HOME correctly.
+            tmpfs={
+                "/home/visitor": "uid=1001,gid=1001",
+                "/tmp": "",
+                "/run": "",
+            },
             environment={
                 "VNC_PASSWORD": vnc_password,
                 # Both cases: some tools read lowercase, some uppercase.
@@ -322,8 +341,6 @@ def spawn_guest(vnc_password: str):
     except docker.errors.APIError as exc:
         raise RuntimeError(f"docker create failed: {exc}") from exc
     try:
-        net = d.networks.get(DOCKER_NETWORK)
-        net.connect(container, ipv4_address=GUEST_IP)
         container.start()
     except Exception as exc:
         # Container created but never started -> remove it so it can't orphan.
@@ -413,7 +430,16 @@ def guac_create_limited_user(admin_token: str, username: str, password: str,
         p = c.patch(
             f"{base}/users/{username}/permissions",
             params={"token": admin_token},
-            json={"connectionPermissions": {connection_id: ["READ"]}},
+            # Guacamole's permissions endpoint is a JSON Patch whose "value"
+            # is a bare permission string — NOT an array of strings. Sending
+            # ["READ"] fails deserialization with HTTP 400.
+            json=[
+                {
+                    "op": "add",
+                    "path": f"/connectionPermissions/{connection_id}",
+                    "value": "READ",
+                }
+            ],
         )
         p.raise_for_status()
 

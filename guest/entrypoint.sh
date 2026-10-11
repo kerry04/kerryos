@@ -37,17 +37,18 @@ if [ "${#home_files[@]}" -eq 0 ]; then
 fi
 shopt -u dotglob nullglob
 
-# --- 4. Per-session VNC password file. ---
-mkdir -p "$HOME/.vnc"
-printf '%s' "$VNC_PASSWORD" | vncpasswd -f > "$HOME/.vnc/passwd"
-chmod 600 "$HOME/.vnc/passwd"
-unset VNC_PASSWORD  # keep it out of the environment of everything below
+# --- 4. No VNC RFB auth needed. ---
+# The Guacamole connection uses security=none, so guacd connects without a
+# VNC password. Access control lives at the Guacamole layer (per-session
+# throwaway user) and 5901 is only reachable on the internal compose
+# network. Debian TigervNC 1.13.1 ships no vncpasswd binary, so this also
+# avoids a missing-tool failure at boot.
 
 # --- 5. Session bus and X server. ---
 eval "$(dbus-launch --sh-syntax)"
 export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID
 
-Xvnc :1 -geometry 1280x800 -depth 24 -rfbauth "$HOME/.vnc/passwd" &
+Xvnc :1 -geometry 1280x800 -depth 24 -SecurityTypes None &
 XVNC_PID=$!
 for _ in $(seq 1 50); do
   [ -S /tmp/.X11-unix/X1 ] && break

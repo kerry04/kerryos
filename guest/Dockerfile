@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         mousepad \
         xfce4-whiskermenu-plugin \
         tigervnc-standalone-server \
+        tigervnc-common \
         dbus-x11 \
         firefox \
         curl \
