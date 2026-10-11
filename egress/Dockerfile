@@ -12,12 +12,15 @@ COPY squid.conf /etc/squid/squid.conf
 COPY domains.txt /etc/squid/domains.txt
 RUN chown proxy:proxy /etc/squid/squid.conf /etc/squid/domains.txt \
  && mkdir -p /var/spool/squid /var/log/squid \
+ && squid -z -f /etc/squid/squid.conf \
+ && rm -f /var/spool/squid/squid.pid \
  && chown -R proxy:proxy /var/spool/squid /var/log/squid
 EXPOSE 3128
-# Run unprivileged. -z initializes the cache dir on first start (a fresh
-# image otherwise exits 1 with "Failed to verify swap directory"); it is a
-# harmless no-op on later starts. The pid file is container-local and goes
-# stale across Docker restarts of the same container, so clear it first or
-# squid FATALS with "already running".
+# NOTE: do NOT run `squid -z` at container startup. On Squid 6, -z bootstraps
+# enough of the daemon to write a fresh PID file, and a subsequent `squid -N`
+# in the same startup sequence FATALS with "already running" -- a race that
+# crash-loops the container. Cache dirs are initialized once here, at build.
+# Run unprivileged. The pid file is container-local and goes stale across
+# Docker restarts of the same container, so clear it before launching.
 USER proxy
-CMD ["sh", "-c", "rm -f /var/spool/squid/squid.pid && squid -z -f /etc/squid/squid.conf && exec squid -N -f /etc/squid/squid.conf"]
+CMD ["sh", "-c", "rm -f /var/spool/squid/squid.pid && exec squid -N -f /etc/squid/squid.conf"]
