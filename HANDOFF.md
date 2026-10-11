@@ -81,7 +81,7 @@ curl -s http://127.0.0.1:8080/api/health; echo
 | Egress allowlist proxy (sokoresult.com/github pass; others 403; metadata 403) | ✅ verified |
 | OCI Security List ingress 80/443 | ✅ OPEN (user-applied; externally confirmed) |
 | ufw 80/443 on host | ✅ OPEN |
-| DNS record `kerryos.sokoresult.com` → 92.5.58.122 | ⏳ TODO (USER_TODO.md step 2) — blocks HTTPS + real URL |
+| DNS record `kerryos.sokoresult.com` → 92.5.58.122 | ✅ LIVE — Let's Encrypt cert issued (valid to Jan 2027), https://kerryos.sokoresult.com returns 200 |
 | nftables egress belt (`egress/nftables.conf`) | 🔸 written; APPLY AT LAUNCH (blocks proxy bypass) |
 
 ### How to test (after DNS, or via one-off token)
