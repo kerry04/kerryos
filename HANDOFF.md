@@ -70,3 +70,28 @@ curl -s http://127.0.0.1:8080/api/health; echo
 - Guacamole takes ~20-30s after (re)start before the API responds.
 - Tinyproxy allowlist: `egress/filter` (regex per line, `FilterDefaultDeny Yes`). Restart proxy container after edits: `docker compose restart proxy`.
 - Session policy: 1 active session, 20-min hard cap, 5-min idle timeout (broker).
+
+---
+## Live status — 2026-10-11 12:40 UTC (all verified from inside the instance)
+
+| Piece | State |
+|---|---|
+| `POST /api/session` → disposable XFCE desktop | ✅ live, verified end-to-end |
+| Desktop streaming (guacamole → guacd → guest, real render instructions) | ✅ verified |
+| Egress allowlist proxy (sokoresult.com/github pass; others 403; metadata 403) | ✅ verified |
+| OCI Security List ingress 80/443 | ✅ OPEN (user-applied; externally confirmed) |
+| ufw 80/443 on host | ✅ OPEN |
+| DNS record `kerryos.sokoresult.com` → 92.5.58.122 | ⏳ TODO (USER_TODO.md step 2) — blocks HTTPS + real URL |
+| nftables egress belt (`egress/nftables.conf`) | 🔸 written; APPLY AT LAUNCH (blocks proxy bypass) |
+
+### How to test (after DNS, or via one-off token)
+1. Operator mints session: `curl -X POST http://127.0.0.1:8080/api/session -d '{}' -H 'Content-Type: application/json'`
+2. Response JSON `guac_url` contains the token for `http://92.5.58.122/guac/#/client/1?token=…` (valid 20 min).
+3. Via SSH tunnel (pre-DNS): `ssh -L 8081:127.0.0.1:8081 ubuntu@92.5.58.122` then open
+   `http://localhost:8081/guacamole/#/client/1?token=<token>`.
+4. Expired token: mint again (session self-destructs).
+5. To force-kill a session: `DELETE /api/session/{session_id}` with `Authorization: Bearer <session_token>`.
+
+### Phase 3 next
+- Win7 theming + boot animation on guest, portfolio icons, frontend embed.
+- Multi-session support, inactivity sweeper UI, monitoring.
