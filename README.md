@@ -6,11 +6,11 @@ no KVM (unavailable on this shape, verified in the spec). Budget: $0/mo.
 ```
 visitor -> Caddy (443) -> /guac/* -> Guacamole -> guacd -> VNC 5901 -> guest container
                        -> /api/*  -> session broker -> Docker socket (spawns guest)
-guest container -> Squid :3128 (allowlist enforced OUTSIDE the guest) -> internet
+guest container -> Tinyproxy :3128 (allowlist enforced OUTSIDE the guest) -> internet
 ```
 
 Layout: `guest/` (desktop image) · `gateway/` (compose + Guacamole + Caddy + scripts) ·
-`broker/` (session API) · `egress/` (Squid + nftables + verify script) ·
+`broker/` (session API) · `egress/` (Tinyproxy + nftables + verify script) ·
 `frontend-snippet/` (standalone boot/viewer prototype for the Phase 3 portfolio merge).
 
 Full architecture: `../kerryos-mvp/KERRYOS_MVP_SPEC.md`.
@@ -52,7 +52,7 @@ EOF
 ```bash
 # Guest desktop (the per-session machine). ~5-10 min on first build.
 docker build -t kerryos/guest:latest ./guest
-# Broker + squid build from ./broker and ./egress via compose (next step).
+# Broker + tinyproxy build from ./broker and ./egress via compose (next step).
 ```
 
 ## 3. Start the gateway stack
@@ -60,7 +60,7 @@ docker build -t kerryos/guest:latest ./guest
 ```bash
 cd gateway
 ./scripts/init-db.sh          # one-time: generates guacamole/initdb.sql from the image
-docker compose up -d --build  # postgres, guacd, guacamole, squid, broker, caddy
+docker compose up -d --build  # postgres, guacd, guacamole, tinyproxy, broker, caddy
 docker compose ps             # all six "running"
 ./scripts/set-admin-password.sh   # rotates guacadmin off the default password
 ```
@@ -160,7 +160,7 @@ Then end the session (step 7.4).
 ## Recovering from a bad first bring-up
 
 If your first `compose up` ran before these fixes (blank POSTGRES_PASSWORD
-warnings, guacd/guacamole crash-looping on ARM64, squid exiting 1):
+warnings, guacd/guacamole crash-looping on ARM64, tinyproxy exiting 1):
 
 ```bash
 cd ~/kerryos && git pull && cd gateway
@@ -198,14 +198,14 @@ docker compose up -d                # back
 4. Mozilla PPA Firefox install path must be `/usr/lib/firefox` for
    `policies.json` to apply (asserted in the Dockerfile comments).
 5. After the allowlist dependency mapping (spec 4.4), add each SokoResult
-   dependency to `egress/domains.txt` with a purpose comment and reload squid.
+   dependency to `egress/filter` with a purpose comment and `docker compose restart proxy`.
 
 ## Security notes worth re-reading monthly
 
-- The allowlist is enforced at Squid + nftables, never in the guest. A
+- The allowlist is enforced at Tinyproxy + nftables, never in the guest. A
   visitor with a terminal cannot bypass it: no DNS, no direct egress.
 - Visitor Guacamole tokens belong to throwaway users with READ on one
   connection only — never admin. Users are deleted at cleanup.
-- Review `broker-data/audit.log` and Squid's `access.log` weekly during
+- Review `broker-data/audit.log` and Tinyproxy's log weekly during
   the MVP: >10 sessions/hour or BLOCKED spikes get investigated.
 - Test the admin kill switch monthly. An untested kill switch is decoration.

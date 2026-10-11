@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # KerryOS Phase 4 egress verification.
-# Run on brain 67 after the guest + Squid are up. Usage:
+# Run on brain 67 after the guest + Tinyproxy are up. Usage:
 #   ./verify-egress.sh [container-name]     (default: kerryos-session)
 #
 # The guest's proxy env (http_proxy/https_proxy=http://172.28.0.20:3128)
@@ -31,7 +31,7 @@ else
     fail "allowed domain blocked or broken (https://sokoresult.com -> HTTP '${CODE:-no response}')"
 fi
 
-# 2) Non-allowlisted domain must NOT load. Squid answers denials with
+# 2) Non-allowlisted domain must NOT load. Tinyproxy answers denials with
 #    HTTP 403, and plain curl exits 0 on a 403 — so -f is load-bearing here:
 #    it turns any HTTP error into a non-zero exit, which is what we assert.
 if docker exec "$CONTAINER" curl -sf -o /dev/null --max-time 8 \
@@ -42,8 +42,10 @@ else
 fi
 
 # 3) Oracle metadata endpoint must be unreachable. Via the proxy this is a
-#    fast 403 from Squid's private_dst ACL; with no proxy it is a firewall
-#    timeout. Either way -f makes it a non-zero exit, which is the pass.
+#    fast 403 from Tinyproxy's filter (IP literal matches nothing); with no
+#    proxy it is a firewall timeout. Either way -f makes it a non-zero exit,
+#    which is the pass. (nftables rule 8 independently blocks the proxy
+#    container from reaching private IPs even if the filter were wrong.)
 if docker exec "$CONTAINER" curl -sf -o /dev/null --max-time 5 \
     http://169.254.169.254/ >/dev/null 2>&1; then
     fail "metadata leak: http://169.254.169.254/ responded from the guest"

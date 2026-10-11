@@ -1,0 +1,20 @@
+# KerryOS egress allowlist -- DENY BY DEFAULT (FilterDefaultDeny Yes).
+# One regex per line, matched against the request DOMAIN (FilterURLs Off).
+# Both the bare domain and the wildcard form are listed so apex + subdomains
+# are covered regardless of anchoring semantics. Everything not matching is
+# denied with HTTP 403.
+#
+# To add a domain: append both forms with a one-line comment saying what it
+# is for, then `docker compose restart <proxy-service>`.
+# See spec section 4.4 for the dependency-mapping procedure before adding
+# anything SokoResult pulls in (auth, fonts, image hosts).
+
+sokoresult\.com
+.*\.sokoresult\.com
+github\.com
+.*\.github\.com
+
+# --- HUMAN_FILL below ---
+# Replace with the real portfolio subdomain before Phase 4
+# (e.g. kerryos.sokoresult.com), or delete if serving from the main domain.
+# PORTFOLIO_DOMAIN_HUMAN_FILL

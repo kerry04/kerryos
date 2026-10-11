@@ -49,8 +49,8 @@ services:
       br-kerryos:
         ipv4_address: 172.28.0.30
 
-  squid:
-    # Built by the egress team from ../egress/Dockerfile (in progress in parallel).
+  proxy:
+    # Built by the egress team from ../egress/Dockerfile (Tinyproxy).
     build: ../egress
     restart: unless-stopped
     networks:
