@@ -82,7 +82,15 @@ curl -s http://127.0.0.1:8080/api/health; echo
 | OCI Security List ingress 80/443 | ✅ OPEN (user-applied; externally confirmed) |
 | ufw 80/443 on host | ✅ OPEN |
 | DNS record `kerryos.sokoresult.com` → 92.5.58.122 | ✅ LIVE — Let's Encrypt cert issued (valid to Jan 2027), https://kerryos.sokoresult.com returns 200 |
-| nftables egress belt (`egress/nftables.conf`) | 🔸 written; APPLY AT LAUNCH (blocks proxy bypass) |
+| nftables egress belt (`egress/nftables.conf`) | ✅ APPLIED + PERSISTED (/etc/nftables.conf, nftables.service enabled), verified 2026-10-11 12:55 UTC |
+
+### Egress belt — applied and verified (2026-10-11 12:55 UTC)
+- `sudo nft -f ~/kerryos/egress/nftables.conf` applied; idempotency guard confirmed.
+- Persistence done the correct way: file copied to `/etc/nftables.conf` (NOT a full ruleset dump), `sudo nft -c -f` syntax check passed, `sudo systemctl enable --now nftables` → active.
+- Verification after belt: `./egress/verify-egress.sh` → ALL CHECKS PASSED (allowed 200, example.com blocked, metadata blocked).
+- New bypass tests (the whole point of the belt): guest `curl --noproxy '*'` to example.com, metadata endpoint, and external DNS @1.1.1.1 → ALL BLOCKED. No leak.
+- Services post-belt: broker healthy, guacamole→guest VNC TCP open, https://kerryos.sokoresult.com → 200, no caddy errors in logs.
+- Test session minted, verified, then force-deleted via `DELETE /api/session/{id}` + bearer; broker back to `session_active: false`.
 
 ### How to test (after DNS, or via one-off token)
 1. Operator mints session: `curl -X POST http://127.0.0.1:8080/api/session -d '{}' -H 'Content-Type: application/json'`

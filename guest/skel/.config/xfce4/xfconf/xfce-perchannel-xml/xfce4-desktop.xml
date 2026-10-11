@@ -13,13 +13,22 @@
   </property>
   <property name="backdrop" type="empty">
     <property name="screen0" type="empty">
-      <!-- Monitor name under Xvnc varies; entrypoint.sh repaints every real
-           monitor/workspace via xfconf-query at runtime. This seed covers the
-           common case. Color is KerryOS blue #2056A8, solid, no image. -->
+      <!-- Covers every monitor name seen under Xvnc (VNC-0 and VNC-1 both
+           observed live 2026-10-11). Phase 3: last-image is the Win7-style
+           gradient wallpaper shipped at /opt/kerryos/wallpaper.png;
+           image-style 3 = scaled-to-fill. -->
+      <property name="monitorVNC-0" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="color-style" type="int" value="0"/>
+          <property name="image-style" type="int" value="3"/>
+          <property name="last-image" type="string" value="/opt/kerryos/wallpaper.png"/>
+        </property>
+      </property>
       <property name="monitorVNC-1" type="empty">
         <property name="workspace0" type="empty">
           <property name="color-style" type="int" value="0"/>
-          <property name="image-style" type="int" value="0"/>
+          <property name="image-style" type="int" value="3"/>
+          <property name="last-image" type="string" value="/opt/kerryos/wallpaper.png"/>
           <property name="color1" type="array">
             <value type="int" value="8224"/>
             <value type="int" value="22102"/>

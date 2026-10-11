@@ -65,22 +65,52 @@ cleanup() {
 }
 trap cleanup TERM INT
 
-# --- 7. Runtime theming, belt and braces on top of the seeded xfconf. ---
-# Give the panel and desktop a moment to register their xfconf channels,
-# then pin the panel to the bottom (p=8 = bottom edge, full width) and
-# paint the desktop KerryOS blue (#2056A8, solid, no image).
+# --- 6b. Pre-XFCE boot splash (Win7-style, ~2.5s, fails soft). ---
+# Runs after the XFCE launch above (splash overlays while XFCE paints); dies
+# on its own timer via boot-splash/kerryos-start. Missing script or missing
+# xmessage never fails boot.
+if [ -x /opt/kerryos/boot-splash/kerryos-start ]; then
+  /opt/kerryos/boot-splash/kerryos-start || true
+fi
+
+# --- 7. Runtime theming (Phase 3): KerryAero windows + Win7 wallpaper ---
+# Belt-and-braces on top of the seeded xfconf skeleton: force the KerryAero
+# window theme, pin the panel to the bottom (Win7 taskbar position), and set
+# every monitor/workspace backdrop to the shipped Win7-style gradient PNG
+# (image-style 3 = scaled-to-fill). Seed values live in skel/.config; these
+# runtime queries catch monitors XFCE registered under other names.
 sleep 5
 xfconf-query -c xfce4-panel -p /panels/panel-1/position -s "p=8" 2>/dev/null || true
-while IFS= read -r prop; do
-  case "$prop" in
-    */color1)
-      xfconf-query -c xfce4-desktop -p "$prop" \
-        -t int -t int -t int -t int -s 8224 -s 22102 -s 43176 -s 65535 \
-        2>/dev/null || true ;;
-    */image-style)
-      xfconf-query -c xfce4-desktop -p "$prop" -t int -s 0 2>/dev/null || true ;;
-  esac
-done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null | grep -E '/(color1|image-style)$' || true)
+
+# KerryAero window decorations (aero-glass title bars + glossy buttons).
+xfconf-query -c xfwm4 -p /general/theme -s "KerryAero" 2>/dev/null || true
+xfconf-query -c xfwm4 -p /general/title_font -s "Sans Bold 10" 2>/dev/null || true
+
+WALLPAPER=/opt/kerryos/wallpaper.png
+if [ -f "$WALLPAPER" ]; then
+  # Re-skin any backdrop property XFCE has already registered.
+  while IFS= read -r prop; do
+    case "$prop" in
+      */image-path|*/last-image)
+        xfconf-query -c xfce4-desktop -p "$prop" \
+          -t string -s "$WALLPAPER" 2>/dev/null || true ;;
+      */image-style)
+        xfconf-query -c xfce4-desktop -p "$prop" \
+          -t int -s 3 2>/dev/null || true ;;
+    esac
+  done < <(xfconf-query -c xfce4-desktop -l 2>/dev/null \
+             | grep -E '/(image-path|image-style|last-image)$' || true)
+
+  # Seed the common monitor/workspace paths if xfdesktop has not yet created
+  # them (fresh $HOME, first paint) — monitor names under Xvnc vary.
+  for mon in monitorVNC-0 monitorVNC-1 monitor0 monitorVNCUnknown-1; do
+    base="/backdrop/screen0/$mon/workspace0"
+    xfconf-query -c xfce4-desktop -p "$base/last-image" \
+      -t string -s "$WALLPAPER" --create 2>/dev/null || true
+    xfconf-query -c xfce4-desktop -p "$base/image-style" \
+      -t int -s 3 --create 2>/dev/null || true
+  done
+fi
 
 wait "$SESSION_PID"
 cleanup

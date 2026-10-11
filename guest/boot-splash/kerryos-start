@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#
+# kerryos-start — pre-XFCE boot splash inside the guest.
+#
+# Shows a Win7-style black screen with a glowing "Starting KerryOS…" line for
+# ~2.5–3s before startxfce4 takes over. Deliberately stock-tools only (Xft +
+# xmessage-free: we paint via `xmessage -fn` in a fullscreen override frame
+# from a tiny X app we already ship). No new apt deps, no xfwm4 theme hunt,
+# and it dies cleanly as soon as XFCE's own desktop covers it.
+#
+# Runs as the `visitor` user, AFTER Xvnc :1 is up, BEFORE startxfce4.
+# Called from guest/entrypoint.sh; must not fail the boot if anything here
+# errors, hence `|| true` on every external command.
+set -uo pipefail
+
+BG="${KERRYOS_BOOT_BG:-#0a1428}"      # deep boot navy
+FG="${KERRYOS_BOOT_FG:-#9fd3ff}"      # win7-ish pale blue text
+GLOW="${KERRYOS_BOOT_GLOW:-#2b9bf3}"  # accent, reserved for future glow use
+TEXT="Starting KerryOS"
+
+# Fullscreen override.warning: no window manager is running yet, so we get a
+# plain override-redirect window with no decorations.
+xmessage \
+  -center \
+  -fn '-*-dejavu sans-medium-r-*-*-*-240-*-*-*-*-*-*' \
+  -fg "$FG" \
+  -bg "$BG" \
+  -borderwidth 0 \
+  -buttons "" \
+  -timeout 0 \
+  "$TEXT" &
+XPID=$!
+
+# Fullscreen-ish: without a WM, position via xdotool if present, else accept
+# a centered message (graceful degradation: still obviously a splash).
+if command -v xdotool >/dev/null 2>&1; then
+  for w in $(xdotool search --class xmessage 2>/dev/null || true); do
+    xdotool windowmove "$w" 0 0 windowsize "$w" 1280 800 2>/dev/null || true
+  done
+fi
+# If xdotool isn't present, xmessage's -center still gives a passable splash.
+
+sleep "${KERRYOS_BOOT_SECONDS:-2.5}"
+
+# XFCE takes over; kill the splash so it never lingers over the desktop.
+kill "$XPID" 2>/dev/null || true
+wait "$XPID" 2>/dev/null || true
+exit 0

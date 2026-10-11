@@ -1,0 +1,11 @@
+# NAME    HEX         (comment)
+glass    #F7F9FC      # near-white glass chrome (title bar face)
+glass2   #E4EBF3      # subtle gradient bottom of the title bar
+sheen    #DCE7F5      # pale blue sheen on the lower half
+sheen2   #C9DAF0      # deeper sheen, button hover accent
+outer    #A8B6C7      # 1px outer frame (slate blue-gray)
+inner    #E9EFF6      # 1px inner edge highlight
+ink      #1F2A3A      # deep navy ink for glyph strokes / title text
+ink_soft #5A7089      # secondary glyph color
+hot      #DDF0FF      # button hover glow (very pale blue-white)
+disabled #B8C4D2      # disabled glyph color

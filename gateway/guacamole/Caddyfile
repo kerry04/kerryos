@@ -28,8 +28,18 @@
 		reverse_proxy guacamole:8080
 	}
 
-	# Placeholder until the portfolio merges in Phase 3
+	# Phase 3: the KerryOS front door. The frontend-snippet page boots a
+	# session via same-origin /api/*, plays the Win7 boot overlay, then embeds
+	# the Guacamole client in an iframe pointed at /guac/.
+	handle_path /kerryos-frontend/* {
+		root * /srv/kerryos-frontend
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Root placeholder still serves the banner until the domain routes here
+	# on purpose (the portfolio site may keep its own landing at /).
 	handle {
-		respond "KerryOS gateway is up. The portfolio site merges here in Phase 3." 200
+		respond "KerryOS gateway is up." 200
 	}
 }

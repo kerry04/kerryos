@@ -93,6 +93,10 @@ services:
       - ../.env
     volumes:
       - ./guacamole/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Phase 3: static frontend for the KerryOS front door (boot screen +
+      # iframe viewer). Served at /kerryos-frontend/ so the portfolio landing
+      # at / is untouched until we flip the root handler on.
+      - ../frontend-snippet:/srv/kerryos-frontend:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:
