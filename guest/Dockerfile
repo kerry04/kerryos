@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Unprivileged session user. Nothing in this image runs as root at runtime:
 # the entrypoint executes as `visitor` (see USER below).
-RUN useradd -m -u 1000 -s /bin/bash visitor
+RUN useradd -m -u 1001 -s /bin/bash visitor
 
 # Skeleton home. The entrypoint copies this into the tmpfs $HOME on every
 # boot, so each session starts from a clean, identical desktop.
