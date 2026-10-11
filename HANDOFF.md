@@ -103,3 +103,18 @@ curl -s http://127.0.0.1:8080/api/health; echo
 ### Phase 3 next
 - Win7 theming + boot animation on guest, portfolio icons, frontend embed.
 - Multi-session support, inactivity sweeper UI, monitoring.
+
+---
+
+## Live status — 2026-10-11 21:40 UTC (Phase 3 core landed)
+
+| Piece | State |
+|---|---|
+| Win7 theming: KerryAero xfwm4 + Win7 wallpaper + boot splash | ✅ verified live in a minted session (xfconf reads back KerryAero + wallpaper, style=3; xfdesktop running) |
+| Portfolio desktop icon → sokoresult.com | ✅ (HUMAN_FILL replaced) |
+| Frontend viewer at /kerryos-frontend/ via Caddy | ✅ 200, title verified; main site root unaffected |
+| Container egress regression (7b/8b/8c) | ✅ FIXED + persisted: docker0 egress + port-53-only DNS to VCN resolver; docker builds ~2min on default net |
+| Rate limiter quirk found | 🔸 known: bucket seeding counts mints the moment a bucket is first written; ~10 min refill after bursts. Playbook: `docker exec kerryos-broker-1 python3 -c "...rate_buckets query"` to check tokens before testing. |
+
+Remaining Phase 3 polish (not blocking): richer boot animation frames, Win7
+mkmenu/thunar theming, guest app portfolio beyond 3 icons, monitoring.
