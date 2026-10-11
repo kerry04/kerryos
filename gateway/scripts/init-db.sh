@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Generates guacamole/initdb.sql (the Guacamole JDBC schema) from the
-# official guacamole image. One-time step on brain 67.
+# Generates guacamole/initdb.sql (the Guacamole JDBC schema) by downloading
+# the official schema SQL for the matching Guacamole version. One-time step.
 #
-# ARM64-SAFE: the official guacamole image is AMD64-only and cannot RUN on
-# brain 67, but the schema is just SQL text. We pull the image (no run),
-# create a stopped container, copy the schema files out, and run initdb.sh
-# on the HOST. Never `docker run` the AMD64 image.
+# Why not the Docker image: the official guacamole image is AMD64-only and
+# cannot run on brain 67 (ARM64). The schema is plain SQL, versioned in the
+# guacamole-client repo, so we fetch it directly. No Docker needed at all.
 #
 # Idempotent: skips if guacamole/initdb.sql already exists, unless --force.
 #
@@ -15,41 +14,33 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="$SCRIPT_DIR/../guacamole/initdb.sql"
-IMAGE="guacamole/guacamole:1.5.5"
+
+GUAC_VERSION="1.5.5"
+BASE="https://raw.githubusercontent.com/apache/guacamole-client/${GUAC_VERSION}/extensions/guacamole-auth-jdbc/modules/guacamole-auth-jdbc-postgresql/schema"
 
 if [[ -f "$OUT" && "${1:-}" != "--force" ]]; then
   echo "initdb.sql already exists at $OUT - skipping (pass --force to regenerate)."
   exit 0
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "ERROR: docker not found. Run this script on brain 67." >&2
-  exit 1
+# A stale empty file or directory from the old Docker-based script blocks us.
+if [[ -e "$OUT" ]]; then
+  echo "Removing stale $OUT ..."
+  rm -rf "$OUT"
 fi
 
-echo "Pulling $IMAGE schema files (image is AMD64-only; we never run it)..."
-docker pull --platform linux/amd64 "$IMAGE" >/dev/null
-
-TMPDIR="$(mktemp -d)"
-trap 'docker rm -f "$CID" >/dev/null 2>&1; rm -rf "$TMPDIR"' EXIT
-CID="$(docker create --platform linux/amd64 "$IMAGE")"
-docker cp "$CID:/opt/guacamole/bin/initdb.sh" "$TMPDIR/initdb.sh"
-docker cp "$CID:/opt/guacamole/schema" "$TMPDIR/schema"
-
-echo "Generating PostgreSQL schema -> $OUT"
-# initdb.sh cats the schema files; run it on the host with the extracted dir.
-(cd "$TMPDIR" && bash initdb.sh --postgres) > "$OUT"
+echo "Downloading Guacamole $GUAC_VERSION PostgreSQL schema..."
+curl -sSf "$BASE/001-create-schema.sql" -o "$OUT"
+curl -sSf "$BASE/002-create-admin-user.sql" >> "$OUT"
 
 LINES="$(wc -l < "$OUT")"
 if [[ "$LINES" -lt 100 ]]; then
-  echo "ERROR: generated schema looks too short ($LINES lines). Aborting." >&2
+  echo "ERROR: downloaded schema looks too short ($LINES lines). Aborting." >&2
   rm -f "$OUT"
   exit 1
 fi
 
 echo "OK: wrote $OUT ($LINES lines)."
-echo "If postgres already started with an empty DB, load it with:"
-echo "  source ../../.env && docker exec -i -e PGPASSWORD=\$POSTGRES_PASSWORD \\"
-echo "    kerryos-postgres-1 psql -U guacamole_user -d guacamole_db < $OUT"
-echo "(Fresh installs: postgres picks it up automatically from"
-echo " /docker-entrypoint-initdb.d/ on first start.)"
+echo "If postgres already started with an empty DB, wipe and restart so it"
+echo "auto-initializes:  docker compose stop postgres && docker volume rm"
+echo "kerryos_pgdata && docker compose up -d postgres"
