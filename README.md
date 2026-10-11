@@ -1,5 +1,4 @@
 # KerryOS MVP — bring-up runbook (Phase 1 scaffold)
-
 One visitor at a time boots a real, disposable Linux desktop (XFCE, Win7-themed)
 in their browser. Track A: one Docker container per session on brain 67 —
 no KVM (unavailable on this shape, verified in the spec). Budget: $0/mo.
@@ -157,6 +156,25 @@ Then end the session (step 7.4).
   # -> {"killed":true}; container gone, lock cleared, next visitor gets a clean desktop.
   ```
 - **Rate limit:** 4 rapid POSTs from one IP → the 4th is 429.
+
+## Recovering from a bad first bring-up
+
+If your first `compose up` ran before these fixes (blank POSTGRES_PASSWORD
+warnings, guacd/guacamole crash-looping on ARM64, squid exiting 1):
+
+```bash
+cd ~/kerryos && git pull && cd gateway
+docker compose down -v   # wipes the pgdata initialized with the blank password
+./scripts/init-db.sh     # regenerate the schema file
+docker compose up -d --build
+docker compose ps        # all six "running", none "Restarting"
+./scripts/set-admin-password.sh
+./scripts/create-connection.sh   # NEW id -> paste into .env as GUAC_CONNECTION_ID
+docker compose restart broker
+```
+
+The `gateway/.env` symlink (committed) now feeds the repo-root `.env` into
+compose variable interpolation, so the warnings are gone.
 
 ## Rollback
 

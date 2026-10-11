@@ -21,7 +21,9 @@ services:
         ipv4_address: 172.28.0.70
 
   guacd:
-    image: guacamole/guacd:1.5.5
+    # Official guacamole/guacd is AMD64-only (crash-loops on ARM64).
+    # linuxserver.io's build is the same guacd, multi-arch incl. arm64.
+    image: lscr.io/linuxserver/guacd:latest
     restart: unless-stopped
     ports:
       - "127.0.0.1:4822:4822"
@@ -30,7 +32,9 @@ services:
         ipv4_address: 172.28.0.60
 
   guacamole:
-    image: guacamole/guacamole:1.5.5
+    # Built from official Apache source for ARM64 (see ./guacamole-webapp/).
+    # The official guacamole/guacamole image is AMD64-only.
+    build: ./guacamole-webapp
     restart: unless-stopped
     depends_on:
       - postgres

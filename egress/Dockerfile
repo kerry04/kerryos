@@ -10,7 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Policy files owned by the proxy user; squid runs as user 'proxy' on Ubuntu.
 COPY squid.conf /etc/squid/squid.conf
 COPY domains.txt /etc/squid/domains.txt
-RUN chown proxy:proxy /etc/squid/squid.conf /etc/squid/domains.txt
+RUN chown proxy:proxy /etc/squid/squid.conf /etc/squid/domains.txt \
+ && mkdir -p /var/spool/squid /var/log/squid \
+ && chown -R proxy:proxy /var/spool/squid /var/log/squid
 EXPOSE 3128
-# Foreground; compose handles restarts.
-CMD ["squid", "-N", "-f", "/etc/squid/squid.conf"]
+# Run unprivileged. -z initializes the cache dir on first start (a fresh
+# image otherwise exits 1 with "Failed to verify swap directory"); it is a
+# harmless no-op on later starts.
+USER proxy
+CMD ["sh", "-c", "squid -z -f /etc/squid/squid.conf && exec squid -N -f /etc/squid/squid.conf"]
