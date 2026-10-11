@@ -1,0 +1,35 @@
+# KerryOS gateway - Caddy reverse proxy (template)
+#
+# HUMAN_FILL: set PORTFOLIO_DOMAIN and ACME_EMAIL in the repo-root .env,
+# then reload caddy. The root "/" handler is a placeholder; the portfolio
+# team merges their real site here in Phase 3.
+
+{
+	email {$ACME_EMAIL}
+}
+
+{$PORTFOLIO_DOMAIN} {
+
+	encode gzip
+
+	# Session broker API (keeps its own /api prefix)
+	handle /api/* {
+		reverse_proxy broker:8080
+	}
+
+	# Guacamole client under /guac (matches GUAC_PUBLIC_PATH=/guac)
+	handle /guac {
+		redir /guac/
+	}
+	# Guacamole serves from its /guacamole context path; map /guac/* onto it.
+	# (strip_prefix alone would 404, because the app is not at the container root.)
+	handle /guac/* {
+		uri replace /guac/ /guacamole/
+		reverse_proxy guacamole:8080
+	}
+
+	# Placeholder until the portfolio merges in Phase 3
+	handle {
+		respond "KerryOS gateway is up. The portfolio site merges here in Phase 3." 200
+	}
+}

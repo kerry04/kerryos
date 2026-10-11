@@ -1,0 +1,300 @@
+/* KerryOS frontend snippet — dark, Win7-flavoured, no external assets. */
+
+:root {
+  --blue: #2b9bf3;
+  --blue-deep: #1a6fd4;
+  --bg: #0d1117;
+  --bg-card: #151b24;
+  --bg-topbar: #10151d;
+  --text: #e8eef6;
+  --text-dim: #9aa7b8;
+  --danger: #d64545;
+  --danger-deep: #b23030;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "Segoe UI Variable", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+}
+
+/* ---------- screens ---------- */
+
+.screen {
+  display: none;
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+}
+
+.screen.visible { display: flex; }
+
+.center-card {
+  margin: auto;
+  text-align: center;
+  max-width: 460px;
+  width: calc(100% - 48px);
+  padding: 40px 32px;
+  background: var(--bg-card);
+  border: 1px solid #232d3d;
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.win7-badge {
+  display: inline-block;
+  font-size: 40px;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  margin-bottom: 18px;
+  background: linear-gradient(180deg, #6fc3ff 0%, var(--blue) 45%, var(--blue-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.win7-badge.dim { opacity: 0.55; }
+
+.tagline {
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--text);
+  margin-bottom: 28px;
+}
+
+.status-line {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 20px 0 12px;
+}
+
+.fineprint {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  margin-top: 18px;
+}
+
+.fineprint strong { color: var(--text); }
+
+.fineprint.subtle { font-size: 12px; opacity: 0.7; }
+
+/* ---------- buttons ---------- */
+
+.btn-primary {
+  appearance: none;
+  border: 1px solid #0d5aa8;
+  border-radius: 6px;
+  padding: 12px 34px;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(180deg, #4fb0f5 0%, var(--blue) 50%, var(--blue-deep) 100%);
+  box-shadow: 0 2px 8px rgba(43, 155, 243, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled { opacity: 0.6; cursor: wait; }
+
+.btn-primary.big {
+  font-size: 20px;
+  padding: 16px 56px;
+  border-radius: 8px;
+}
+
+.btn-danger {
+  appearance: none;
+  border: 1px solid #7a1d1d;
+  border-radius: 5px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(180deg, #e06565 0%, var(--danger) 50%, var(--danger-deep) 100%);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.btn-danger:hover { filter: brightness(1.1); }
+.btn-danger:active { transform: translateY(1px); }
+
+/* ---------- spinner ---------- */
+
+.spinner {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 4px solid #232d3d;
+  border-top-color: var(--blue);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- boot overlay ---------- */
+
+.boot-bg {
+  background: radial-gradient(ellipse at center, #10233d 0%, #06090f 70%);
+  align-items: center;
+  justify-content: center;
+}
+
+.boot-inner { text-align: center; }
+
+.boot-logo {
+  font-size: 64px;
+  font-weight: 300;
+  margin-bottom: 26px;
+  background: linear-gradient(180deg, #8fd0ff 0%, var(--blue) 45%, var(--blue-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: boot-glow 2.4s ease-in-out infinite;
+}
+
+@keyframes boot-glow {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+.boot-text {
+  font-size: 18px;
+  color: var(--text-dim);
+  margin-bottom: 22px;
+}
+
+.dots span {
+  display: inline-block;
+  animation: dot-blink 1.2s infinite;
+}
+
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes dot-blink {
+  0%, 60%, 100% { opacity: 0.15; }
+  30% { opacity: 1; }
+}
+
+.boot-bar {
+  width: 220px;
+  height: 6px;
+  margin: 0 auto;
+  background: #1a2230;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.boot-bar-fill {
+  height: 100%;
+  width: 30%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--blue-deep), var(--blue), #8fd0ff);
+  animation: boot-progress 2.4s ease-in-out infinite;
+}
+
+@keyframes boot-progress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(340%); }
+}
+
+/* ---------- session view ---------- */
+
+.session-screen {
+  flex-direction: column;
+}
+
+.session-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 48px;
+  flex: 0 0 48px;
+  padding: 0 12px;
+  background: var(--bg-topbar);
+  border-bottom: 1px solid #232d3d;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.orb-mini {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8fd0ff 0%, var(--blue) 45%, var(--blue-deep) 90%);
+  box-shadow: 0 0 8px rgba(43, 155, 243, 0.6);
+}
+
+.topbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.countdown {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  background: #0b1017;
+  border: 1px solid #232d3d;
+  border-radius: 5px;
+  padding: 5px 10px;
+}
+
+.countdown.low { color: #ff9b9b; border-color: #5c2020; }
+
+.iframe-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #000;
+}
+
+#guac-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ---------- small screens ---------- */
+
+@media (max-width: 480px) {
+  .center-card { padding: 32px 22px; }
+  .win7-badge { font-size: 32px; }
+  .boot-logo { font-size: 48px; }
+  .btn-primary.big { font-size: 18px; padding: 14px 40px; }
+  .session-topbar { padding: 0 8px; }
+  .topbar-title { display: none; }
+  .countdown { font-size: 14px; padding: 4px 8px; }
+  .btn-danger { font-size: 12px; padding: 5px 10px; }
+}

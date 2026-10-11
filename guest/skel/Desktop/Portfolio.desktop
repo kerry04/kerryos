@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Portfolio
+Comment=The founder's portfolio site
+# HUMAN_FILL: replace PORTFOLIO_URL_HUMAN_FILL with the real portfolio URL
+# before building the production image.
+Exec=firefox PORTFOLIO_URL_HUMAN_FILL
+Icon=text-html
+Terminal=false
+StartupNotify=false

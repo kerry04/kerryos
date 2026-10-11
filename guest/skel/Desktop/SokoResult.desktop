@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=SokoResult
+Comment=Open sokoresult.com in Firefox
+Exec=firefox https://sokoresult.com
+Icon=web-browser
+Terminal=false
+StartupNotify=false

@@ -1,0 +1,66 @@
+# KerryOS guest image: one disposable XFCE desktop per visitor session.
+# Target platform is linux/arm64 (brain 67 is Ampere A1); the Dockerfile is
+# arch-agnostic and also builds on amd64.
+FROM ubuntu:24.04
+
+LABEL org.opencontainers.image.title="kerryos-guest" \
+      org.opencontainers.image.description="Disposable KerryOS visitor desktop (XFCE + TigerVNC + Firefox)"
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    HOME=/home/visitor \
+    DISPLAY=:1
+
+# Ubuntu 24.04's stock `firefox` deb is a snap stub and cannot run inside a
+# container (no snapd). The Mozilla Team PPA ships a real Firefox deb,
+# including arm64 builds for noble.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        gnupg \
+        software-properties-common \
+    && add-apt-repository -y ppa:mozillateam/ppa \
+    && printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001\n\nPackage: firefox\nPin: release o=Ubuntu\nPin-Priority: -1\n' \
+        > /etc/apt/preferences.d/mozilla-firefox \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        xfce4 \
+        xfce4-terminal \
+        mousepad \
+        xfce4-whiskermenu-plugin \
+        tigervnc-standalone-server \
+        dbus-x11 \
+        firefox \
+        curl \
+        fonts-dejavu \
+        adwaita-icon-theme \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Unprivileged session user. Nothing in this image runs as root at runtime:
+# the entrypoint executes as `visitor` (see USER below).
+RUN useradd -m -u 1000 -s /bin/bash visitor
+
+# Skeleton home. The entrypoint copies this into the tmpfs $HOME on every
+# boot, so each session starts from a clean, identical desktop.
+COPY skel/ /opt/kerryos/skel/
+COPY entrypoint.sh /entrypoint.sh
+# Firefox Enterprise policy: FORCE all browser traffic through the Squid
+# egress proxy. Firefox ignores proxy env vars, so without this the guest
+# browser would bypass the allowlist entirely. The address is the static
+# Squid IP from the compose network (not a secret). Policy-enforced means
+# the visitor cannot change or disable it in Firefox settings.
+# Assumption: the Mozilla PPA deb installs to /usr/lib/firefox (verify on
+# first build; fall back to /usr/lib/firefox-esr if the path differs).
+COPY policies.json /usr/lib/firefox/distribution/policies.json
+RUN chmod +x /entrypoint.sh \
+    && chmod +x /opt/kerryos/skel/Desktop/*.desktop \
+    && chown -R visitor:visitor /opt/kerryos/skel /entrypoint.sh
+
+USER visitor
+WORKDIR /home/visitor
+
+# TigerVNC display :1. Declared only; the compose file attaches it to
+# br-kerryos with no published ports.
+EXPOSE 5901
+
+ENTRYPOINT ["/entrypoint.sh"]

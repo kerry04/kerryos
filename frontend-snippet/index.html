@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KerryOS — a real desktop in your browser</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ IDLE ============ -->
+<section id="screen-idle" class="screen visible">
+  <div class="center-card">
+    <div class="win7-badge">KerryOS</div>
+    <p class="tagline">A real disposable Linux desktop in your browser — 20 minutes max.</p>
+    <button id="btn-boot" class="btn-primary big">Boot KerryOS</button>
+    <p class="fineprint">One visitor at a time. Nothing is saved; the machine is destroyed when your time ends.</p>
+  </div>
+</section>
+
+<!-- ============ STARTING (waiting on broker) ============ -->
+<section id="screen-starting" class="screen">
+  <div class="center-card">
+    <div class="spinner" aria-hidden="true"></div>
+    <p class="status-line">Starting your machine…</p>
+    <p class="fineprint">Spinning up a fresh desktop. This can take up to a minute.</p>
+  </div>
+</section>
+
+<!-- ============ BOOT OVERLAY (pure CSS, 2-3s) ============ -->
+<section id="screen-boot" class="screen boot-bg">
+  <div class="boot-inner">
+    <div class="boot-logo">KerryOS</div>
+    <p class="boot-text">Starting KerryOS<span class="dots"><span>.</span><span>.</span><span>.</span></span></p>
+    <div class="boot-bar"><div class="boot-bar-fill"></div></div>
+  </div>
+</section>
+
+<!-- ============ SESSION ============ -->
+<section id="screen-session" class="screen session-screen">
+  <header class="session-topbar">
+    <div class="topbar-left">
+      <span class="orb-mini" aria-hidden="true"></span>
+      <span class="topbar-title">KerryOS</span>
+    </div>
+    <div class="topbar-right">
+      <span id="countdown" class="countdown" aria-label="time remaining">20:00</span>
+      <button id="btn-end" class="btn-danger">End session</button>
+    </div>
+  </header>
+  <div class="iframe-wrap">
+    <iframe id="guac-frame" title="KerryOS desktop" allow="clipboard-read; clipboard-write"></iframe>
+  </div>
+</section>
+
+<!-- ============ BUSY (409) ============ -->
+<section id="screen-busy" class="screen">
+  <div class="center-card">
+    <div class="win7-badge dim">KerryOS</div>
+    <p class="status-line">KerryOS is busy</p>
+    <p class="fineprint">Someone else is using the machine right now.<br>Free again in <strong id="busy-countdown">--:--</strong>.</p>
+    <button id="btn-retry-busy" class="btn-primary">Try now</button>
+    <p class="fineprint subtle">Auto-retries when the timer reaches zero.</p>
+  </div>
+</section>
+
+<!-- ============ RATE LIMITED (429) ============ -->
+<section id="screen-rate" class="screen">
+  <div class="center-card">
+    <div class="win7-badge dim">KerryOS</div>
+    <p class="status-line">Slow down a little</p>
+    <p class="fineprint">You've hit the rate limit. Come back in a bit and try again.</p>
+    <button id="btn-back-rate" class="btn-primary">Back</button>
+  </div>
+</section>
+
+<!-- ============ ERROR ============ -->
+<section id="screen-error" class="screen">
+  <div class="center-card">
+    <div class="win7-badge dim">KerryOS</div>
+    <p class="status-line">Something went wrong</p>
+    <p id="error-message" class="fineprint">Unknown error.</p>
+    <button id="btn-retry-error" class="btn-primary">Retry</button>
+  </div>
+</section>
+
+<!-- ============ EXPIRED ============ -->
+<section id="screen-expired" class="screen">
+  <div class="center-card">
+    <div class="win7-badge dim">KerryOS</div>
+    <p class="status-line">Session expired</p>
+    <p class="fineprint">Your 20 minutes are up, or the machine was shut down. The desktop has been destroyed.</p>
+    <button id="btn-boot-again" class="btn-primary big">Boot again</button>
+  </div>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<channel name="xfce4-desktop" version="1.0">
+  <property name="desktop-icons" type="empty">
+    <!-- Show ~/Desktop file/launcher icons on the desktop. -->
+    <property name="icon-style" type="uint" value="2"/>
+    <property name="file-icons" type="empty">
+      <property name="show-home" type="bool" value="false"/>
+      <property name="show-filesystem" type="bool" value="false"/>
+      <property name="show-trash" type="bool" value="false"/>
+      <property name="show-removable" type="bool" value="false"/>
+    </property>
+  </property>
+  <property name="backdrop" type="empty">
+    <property name="screen0" type="empty">
+      <!-- Monitor name under Xvnc varies; entrypoint.sh repaints every real
+           monitor/workspace via xfconf-query at runtime. This seed covers the
+           common case. Color is KerryOS blue #2056A8, solid, no image. -->
+      <property name="monitorVNC-1" type="empty">
+        <property name="workspace0" type="empty">
+          <property name="color-style" type="int" value="0"/>
+          <property name="image-style" type="int" value="0"/>
+          <property name="color1" type="array">
+            <value type="int" value="8224"/>
+            <value type="int" value="22102"/>
+            <value type="int" value="43176"/>
+            <value type="int" value="65535"/>
+          </property>
+        </property>
+      </property>
+    </property>
+  </property>
+</channel>

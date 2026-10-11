@@ -1,0 +1,20 @@
+# KerryOS egress allowlist -- DENY BY DEFAULT.
+# This file IS the whole egress policy. One domain per line. A leading dot
+# matches the domain and all its subdomains (e.g. ".github.com" covers
+# github.com, api.github.com, raw.githubusercontent.com stays blocked).
+# Everything not listed here is denied at squid.conf's final "deny all".
+#
+# To add a domain: append it here with a one-line comment saying what it
+# is for, then `docker exec kerryos-squid squid -k reconfigure`.
+# See spec section 4.4 for the dependency-mapping procedure before adding
+# anything SokoResult pulls in (auth, fonts, image hosts).
+
+.sokoresult.com        # portfolio app (the thing the guest is demoing)
+www.sokoresult.com     # canonical redirect of the portfolio app
+.github.com            # code links shown on the portfolio
+
+# --- HUMAN_FILL below ---
+# Replace this placeholder with the real portfolio subdomain before Phase 4
+# (e.g. kerryos.sokoresult.com), or delete the line if the portfolio serves
+# from the main domain only.
+PORTFOLIO_DOMAIN_HUMAN_FILL

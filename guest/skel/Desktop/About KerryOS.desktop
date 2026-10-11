@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=About KerryOS
+Comment=Read about this disposable desktop session
+Exec=mousepad /home/visitor/README.txt
+Icon=text-x-generic
+Terminal=false
+StartupNotify=false

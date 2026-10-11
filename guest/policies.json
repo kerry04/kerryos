@@ -1,0 +1,1 @@
+{"policies":{"DisableTelemetry":true,"DontCheckDefaultBrowser":true,"Proxy":{"HTTPProxy":"172.28.0.20:3128","Mode":"manual","NoProxy":["172.28.0.0/24","localhost","127.0.0.1"],"SSLProxy":"172.28.0.20:3128"}}}
