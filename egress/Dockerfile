@@ -16,6 +16,8 @@ RUN chown proxy:proxy /etc/squid/squid.conf /etc/squid/domains.txt \
 EXPOSE 3128
 # Run unprivileged. -z initializes the cache dir on first start (a fresh
 # image otherwise exits 1 with "Failed to verify swap directory"); it is a
-# harmless no-op on later starts.
+# harmless no-op on later starts. The pid file is container-local and goes
+# stale across Docker restarts of the same container, so clear it first or
+# squid FATALS with "already running".
 USER proxy
-CMD ["sh", "-c", "squid -z -f /etc/squid/squid.conf && exec squid -N -f /etc/squid/squid.conf"]
+CMD ["sh", "-c", "rm -f /var/spool/squid/squid.pid && squid -z -f /etc/squid/squid.conf && exec squid -N -f /etc/squid/squid.conf"]

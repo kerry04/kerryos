@@ -10,7 +10,7 @@
 # anything SokoResult pulls in (auth, fonts, image hosts).
 
 .sokoresult.com        # portfolio app (the thing the guest is demoing)
-www.sokoresult.com     # canonical redirect of the portfolio app
+                      # leading dot covers www + all subdomains
 .github.com            # code links shown on the portfolio
 
 # --- HUMAN_FILL below ---

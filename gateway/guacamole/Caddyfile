@@ -19,7 +19,7 @@
 
 	# Guacamole client under /guac (matches GUAC_PUBLIC_PATH=/guac)
 	handle /guac {
-		redir /guac/
+		redir /guac/ 302
 	}
 	# Guacamole serves from its /guacamole context path; map /guac/* onto it.
 	# (strip_prefix alone would 404, because the app is not at the container root.)
