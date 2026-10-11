@@ -17,4 +17,4 @@ www.sokoresult.com     # canonical redirect of the portfolio app
 # Replace this placeholder with the real portfolio subdomain before Phase 4
 # (e.g. kerryos.sokoresult.com), or delete the line if the portfolio serves
 # from the main domain only.
-PORTFOLIO_DOMAIN_HUMAN_FILL
+# PORTFOLIO_DOMAIN_HUMAN_FILL
