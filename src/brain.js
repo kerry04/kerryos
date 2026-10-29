@@ -77,9 +77,9 @@ export class Brain {
       if (k === 'rack') s -= 0.12;
       if (k === 'gaming') s += 0.08;
       if (k === 'dance') s -= 0.06;
-      // music on the TV: he'll want to move, and the TV is taken
-      if (this.music && k === 'dance') s += 0.45;
-      if (this.music && k === 'gaming') s = -2;
+      // a visitor's track on the TV: he'll want to move, and the TV is taken
+      if (this.visitorMusic && k === 'dance') s += 0.45;
+      if (this.visitorMusic && k === 'gaming') s = -2;
       // he won't start a shootaround while the ball is stuck somewhere he can't reach
       if (k === 'hoops' && this.ballLost && this.ball.state.pos.distanceTo(this.ballLost) < 0.2) s = -2;
       if ((k === 'dance' || k === 'hoops') && N.energy < 0.25) s -= 0.5;
@@ -186,18 +186,26 @@ export class Brain {
   }
 
   timeUp() {
-    if (this.music && this.activity === 'gaming') return true; // someone put music on the TV
+    if (this.visitorMusic && this.activity === 'gaming') return true; // someone put a track on the TV
     return this.time > this.endAt || this.needs.energy < 0.05 && this.activity !== 'sleep';
   }
 
-  // a visitor put a track on (or turned it off)
-  setMusic(on) {
-    if (on === !!this.music) return;
-    this.music = on;
-    if (on && this.activity !== 'sleep') {
+  // Kerry keeps his liked songs going on the TV unless he's asleep, playing
+  // the PS5 or playing the guitar himself
+  get musicWanted() {
+    return !this.lying && !['sleep', 'gaming', 'guitar'].includes(this.activity);
+  }
+
+  // music started or stopped; byVisitor when someone else picked the track
+  setMusic(on, byVisitor = false) {
+    const was = !!this.music, wasVisitor = !!this.visitorMusic;
+    this.music = on; this.visitorMusic = on && byVisitor;
+    if (this.visitorMusic && !wasVisitor && this.activity !== 'sleep') {
       this.say(pick(['Oh, that’s a tune.', 'Turn it up.', 'Good pick.', 'Okay, okay. I see you.']), 3);
       // the guitar can't compete; anything else he may or may not drop
       if (this.activity !== 'dance' && (this.activity === 'guitar' || Math.random() < 0.6)) this.endAt = Math.min(this.endAt, this.time + rand(2, 7));
+    } else if (on && !was && !byVisitor && Math.random() < 0.4 && this.activity !== 'sleep') {
+      this.say(pick(['Liked songs, on repeat.', 'Music on.', 'Need some noise in here.']), 2.5);
     }
   }
 
@@ -680,18 +688,14 @@ export class Brain {
     else yield* this.walkTo(A.pos.clone(), { facing: camFacing() });
     const tv = this.screens.tv;
     tv.mode = 'viz';
-    let beatPulse = 0, groove = false;
-    const grooveOn = () => { if (groove) return; groove = true; this.audio.startGroove(this.props.soundbar.pos, (s) => { if (s % 4 === 0) beatPulse = 1; }); };
-    const grooveOff = () => { if (!groove) return; groove = false; this.audio.stopGroove(); };
-    if (!this.music) grooveOn();
+    let beatPulse = 0;
     this.kerry.play('dance', 0.5, 1);
     let t = 0;
     while (!this.timeUp()) {
       const dt = yield;
       t += dt;
-      // his own groove on the soundbar, or the visitor's track on the TV
-      if (this.music) grooveOff(); else grooveOn();
-      if (!this.audio.enabled || this.music) { if (Math.floor(t * this.audio.BPM / 60) !== Math.floor((t - dt) * this.audio.BPM / 60)) beatPulse = 1; }
+      // the music is Spotify on the TV; he moves to a steady beat
+      if (Math.floor(t * this.audio.BPM / 60) !== Math.floor((t - dt) * this.audio.BPM / 60)) beatPulse = 1;
       beatPulse = Math.max(0, beatPulse - dt * 5);
       this.beat = beatPulse;
       tv.energy = 0.4 + beatPulse * 0.6;
@@ -702,7 +706,6 @@ export class Brain {
       else P.lookW = damp(P.lookW, 0, 0.5, dt);
     }
     this.beat = 0;
-    grooveOff();
     tv.mode = 'off';
     this.kerry.play('idle', 0.6);
     yield* this.wait(0.6);

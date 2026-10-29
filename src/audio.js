@@ -1,5 +1,5 @@
 // All sound is synthesized in the browser: a Karplus-Strong plucked-string
-// guitar, an original drum-and-bass groove for dancing, and physical-ish SFX.
+// guitar and physical-ish SFX. Music for the room comes from Spotify (spotify.js).
 // Sources are positioned in the room and the listener follows the camera.
 
 import { ASSETS } from './config.js';
@@ -220,74 +220,8 @@ export function createAudio() {
     }
   }
 
-  // ------------------------------------------------------------ groove for dancing (118 bpm)
-  const groove = { on: false, step: 0, nextTime: 0, pos: null, onBeat: null, sinceStart: 0 };
-  const BPM = 118, STEP = 60 / BPM / 4;
-  const bassline = [45, null, 45, null, 48, null, null, 50, 45, null, 45, null, 43, null, 45, null];
-  const marimba = [69, null, 72, null, null, 74, null, 72, 69, null, 67, null, 69, null, null, null];
-  function drum(type, t, pos) {
-    if (type === 'kick') {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
-      g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
-      o.connect(g); g.connect(voice(pos, { send: 0.05, gain: 0.9 })); o.start(t); o.stop(t + 0.4);
-    } else if (type === 'hat' || type === 'shaker') {
-      const s = ctx.createBufferSource(); s.buffer = noiseBuf;
-      const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = type === 'hat' ? 7000 : 5000;
-      const g = ctx.createGain(); g.gain.setValueAtTime(type === 'hat' ? 0.16 : 0.08, t); g.gain.exponentialRampToValueAtTime(0.001, t + (type === 'hat' ? 0.05 : 0.09));
-      s.connect(f); f.connect(g); g.connect(voice(pos, { send: 0.1 })); s.start(t, Math.random()); s.stop(t + 0.12);
-    } else if (type === 'clap') {
-      for (let i = 0; i < 3; i++) {
-        const s = ctx.createBufferSource(); s.buffer = noiseBuf;
-        const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.8;
-        const g = ctx.createGain(); const tt = t + i * 0.012;
-        g.gain.setValueAtTime(0.35, tt); g.gain.exponentialRampToValueAtTime(0.001, tt + 0.12);
-        s.connect(f); f.connect(g); g.connect(voice(pos, { send: 0.35 })); s.start(tt, Math.random()); s.stop(tt + 0.15);
-      }
-    } else if (type === 'conga') {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.frequency.setValueAtTime(320, t); o.frequency.exponentialRampToValueAtTime(220, t + 0.08);
-      g.gain.setValueAtTime(0.25, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-      o.connect(g); g.connect(voice(pos, { send: 0.15 })); o.start(t); o.stop(t + 0.2);
-    }
-  }
-  function synthNote(midi, t, dur, pos, kind) {
-    const f = 440 * Math.pow(2, (midi - 69) / 12);
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    if (kind === 'bass') {
-      o.type = 'sawtooth';
-      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(600, t); lp.frequency.exponentialRampToValueAtTime(160, t + dur);
-      o.frequency.value = f / 2;
-      g.gain.setValueAtTime(0.0, t); g.gain.linearRampToValueAtTime(0.3, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      o.connect(lp); lp.connect(g);
-    } else {
-      o.type = 'sine'; o.frequency.value = f;
-      const o2 = ctx.createOscillator(); o2.frequency.value = f * 4; const g2 = ctx.createGain(); g2.gain.value = 0.25;
-      o2.connect(g2); g2.connect(g); o2.start(t); o2.stop(t + dur);
-      g.gain.setValueAtTime(0.0, t); g.gain.linearRampToValueAtTime(0.16, t + 0.004); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      o.connect(g);
-    }
-    g.connect(voice(pos, { send: kind === 'bass' ? 0.05 : 0.3 }));
-    o.start(t); o.stop(t + dur + 0.02);
-  }
-  function scheduleGroove() {
-    if (!groove.on || !enabled) return;
-    while (groove.nextTime < ctx.currentTime + 0.15) {
-      const s = groove.step % 16, bar = Math.floor(groove.step / 16);
-      const t = groove.nextTime, p = groove.pos;
-      if (s % 4 === 0) drum('kick', t, p);
-      if (s === 4 || s === 12) drum('clap', t, p);
-      if (s % 2 === 1) drum('hat', t, p);
-      drum('shaker', t, p);
-      if ([3, 6, 10, 11, 14].includes(s)) drum('conga', t, p);
-      if (bassline[s]) synthNote(bassline[s] + (bar % 4 === 3 ? -2 : 0), t, STEP * 1.8, p, 'bass');
-      if (bar % 2 === 1 && marimba[s]) synthNote(marimba[s], t, 0.3, p, 'mallet');
-      const stepNo = groove.step;
-      setTimeout(() => groove.onBeat?.(stepNo % 16), Math.max(0, (t - ctx.currentTime) * 1000));
-      groove.nextTime += STEP;
-      groove.step++;
-    }
-  }
+  // tempo Kerry dances at (the music itself is Spotify on the TV)
+  const BPM = 118;
 
   return {
     init, get enabled() { return enabled && !muted; }, get ctx() { return ctx; },
@@ -296,10 +230,7 @@ export function createAudio() {
     setListener, pluck, sfx: new Proxy(sfx, { get: (o, k) => (...a) => { if (enabled && !muted) o[k](...a); } }),
     setGuitarPos(pos) { if (enabled) guitarOut(pos); },
     setCrowd, tickCrickets,
-    startGroove(pos, onBeat) { if (!enabled) { groove.on = true; groove.onBeat = onBeat; groove.pos = pos; return; } groove.on = true; groove.pos = pos; groove.onBeat = onBeat; groove.step = 0; groove.nextTime = ctx.currentTime + 0.1; },
-    stopGroove() { groove.on = false; },
-    get grooveOn() { return groove.on; },
-    update() { if (groove.on && enabled && groove.nextTime < ctx.currentTime) { /* catch up after resume */ groove.nextTime = Math.max(groove.nextTime, ctx.currentTime); } scheduleGroove(); },
+    update() {},
     BPM,
     voiceClip(name) { const a = new Audio(ASSETS.audio(name)); a.preload = 'auto'; return a; },
   };

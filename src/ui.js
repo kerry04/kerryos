@@ -142,7 +142,7 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
   music.onChange((st) => {
     tvSurf.on = st.on; tvSurf.obj.visible = st.on;
     screens.tv.music = st.on ? music.tracks[st.index] : null;
-    if (ui.brain) ui.brain.setMusic(st.on && (st.playing || st.buffering));
+    if (ui.brain) ui.brain.setMusic(st.on && (st.playing || st.buffering), st.by === 'visitor');
     if (panel.dataset.id === 'tv' && !panel.hidden) renderMusic();
   });
 
@@ -175,36 +175,52 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
     cssRenderer.render(cssScene, camera);
   }
 
+  // Kerry runs his own music: his liked songs on the TV, on repeat, whenever
+  // he's up and not gaming or playing the guitar. A visitor can pick a track
+  // or turn it off; he puts it back on when he moves on to something else.
+  const kerryMusic = { visitorOff: false, lastAct: null, check: 0 };
+  function syncMusic(dt) {
+    const brain = ui.brain; if (!brain) return;
+    const st = music.state;
+    music.setAudible(!!audio.ctx && !audio.muted);
+    if (brain.activity !== kerryMusic.lastAct) { kerryMusic.lastAct = brain.activity; kerryMusic.visitorOff = false; }
+    kerryMusic.check -= dt; if (kerryMusic.check > 0) return;
+    kerryMusic.check = 0.5;
+    const want = brain.musicWanted;
+    if (want && !st.on && !kerryMusic.visitorOff && !st.error) music.play(Math.floor(Math.random() * music.tracks.length), 'kerry');
+    else if (!want && st.on && st.by === 'kerry') music.stop();
+  }
+
   // the TV panel doubles as the music player
   function renderMusic() {
     let box = panel.querySelector('.music');
     const st = music.state, cur = music.tracks[st.index];
-    const sig = [st.on, st.index, st.playing, st.buffering, st.error].join('|');
+    const sig = [st.on, st.index, st.playing, st.buffering, st.error, st.audible].join('|');
     if (box && box.dataset.sig === sig) return;
     if (!box) { box = document.createElement('div'); box.className = 'music'; panel.querySelector('.p-links').after(box); }
     const scroll = box.querySelector('ol')?.scrollTop || 0;
     box.dataset.sig = sig;
     box.innerHTML = '';
-    const lab = document.createElement('div'); lab.className = 'label'; lab.textContent = 'On repeat · from Kerry’s Spotify';
+    const lab = document.createElement('div'); lab.className = 'label'; lab.textContent = 'Liked songs · from Kerry’s Spotify';
     const now = document.createElement('div'); now.className = 'now';
     const btn = (txt, title, fn, cls = '') => { const b = document.createElement('button'); b.className = 'btn ctl ' + cls; b.textContent = txt; b.title = title; b.setAttribute('aria-label', title); b.onclick = fn; return b; };
     const txt = document.createElement('div'); txt.className = 'now-txt';
     txt.innerHTML = `<div class="now-t"></div><div class="now-a"></div>`;
-    txt.firstChild.textContent = st.on ? cur.title : 'Put a track on the TV';
-    txt.lastChild.textContent = st.error ? 'Spotify’s player didn’t load. Try again, or open a track below.' : st.on ? `${cur.artist}${st.buffering ? ' · loading' : st.playing ? ' · playing' : ' · paused'}` : 'Kerry will hear it too.';
-    now.append(btn('⏮', 'Previous track', () => music.prev()), btn(st.on && st.playing ? '❚❚' : '▶', st.on && st.playing ? 'Pause' : 'Play on the TV', () => (st.on ? music.toggle() : music.play()), 'main'), btn('⏭', 'Next track', () => music.next()), txt);
-    if (st.on) now.append(btn('✕', 'Turn the music off', () => music.stop()));
+    txt.firstChild.textContent = st.on ? cur.title : 'Music’s off';
+    txt.lastChild.textContent = st.error ? 'Spotify’s player didn’t load. Try again, or open a track below.' : st.on ? `${cur.artist}${st.buffering ? ' · loading' : st.playing ? ' · playing' : st.audible ? ' · paused' : ' · turn sound on to hear it'}` : 'Pick a track. Kerry will hear it too.';
+    now.append(btn('⏮', 'Previous track', () => music.prev()), btn(st.on && st.playing ? '❚❚' : '▶', st.on && st.playing ? 'Pause' : 'Play on the TV', () => (st.on ? music.toggle() : music.play(st.index, 'visitor')), 'main'), btn('⏭', 'Next track', () => music.next()), txt);
+    if (st.on) now.append(btn('✕', 'Turn the music off', () => { kerryMusic.visitorOff = true; music.stop(); }));
     const ol = document.createElement('ol');
     music.tracks.forEach((t, i) => {
       const li = document.createElement('li'); if (st.on && i === st.index) li.className = 'cur';
       const b = document.createElement('button'); b.textContent = t.title;
       const sm = document.createElement('small'); sm.textContent = t.artist; b.appendChild(sm);
-      b.onclick = () => music.play(i);
+      b.onclick = () => music.play(i, 'visitor');
       const a = document.createElement('a'); a.href = t.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Spotify ↗'; a.title = `Open ${t.title} in Spotify`;
       li.append(b, a); ol.appendChild(li);
     });
     const fine = document.createElement('p'); fine.className = 'fine';
-    fine.textContent = 'Plays through Spotify’s own player: full tracks if you’re signed in to Spotify in this browser, 30-second previews if not.';
+    fine.textContent = 'Kerry keeps these on repeat while he’s up. Plays through Spotify’s own player: full tracks if you’re signed in to Spotify in this browser, 30-second previews if not.';
     box.append(lab, now, ol, fine);
     ol.scrollTop = scroll;
   }
@@ -446,6 +462,7 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
       if (performance.now() > bubbleUntil) bubble.classList.remove('show');
     }
 
+    syncMusic(dt);
     hudT += dt;
     const brain = ui.brain;
     if (hudT > 0.25 && brain) {

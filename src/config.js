@@ -109,7 +109,7 @@ export const SPOTS = {
     kind: 'Downtime',
     body: [
       'Where most evenings end. When he is playing, the match on the TV is live: it reacts to his inputs and he reacts to the score.',
-      'The TV also plays what Kerry has on repeat on Spotify. Put a track on and he hears it too.',
+      'When he isn’t gaming, the TV plays his Spotify liked songs on repeat. Pick a track and he hears it too.',
     ],
     audio: 'tour-ps5',
   },
@@ -182,7 +182,7 @@ export const TOUR_LINES = {
   board: "The whiteboard has the pricing rule behind every SokoResult market, and what's shipping next. When he's in a building mood, he thinks here before he types.",
   window: "Out the window is Nairobi. The sky follows the real time here, so come back at night and the city lights will be on.",
   poster: "The poster is for the next big game he's waiting on.",
-  tv: "This is the PS5 corner. When he's playing, the match on the TV is live, and he reacts to every goal. The TV also plays what Kerry has on repeat on Spotify. Put a track on, and he'll probably start dancing.",
+  tv: "This is the PS5 corner. When he's playing, the match on the TV is live, and he reacts to every goal. When he isn't gaming, the TV plays his Spotify liked songs on repeat. Pick a track, and he'll probably start dancing.",
   shelf: "On the shelf, the mini PC is where the Virtual Web PC experiment started: a full computer streamed into a browser tab. That project led to KerryOS.",
   guitar: "When he picks up the guitar, he fingerpicks House of the Rising Sun. Every note is synthesized right here in your browser.",
   hoop: "The hoop has real ball physics: spin, the rim, the backboard, and a net that gives. You can throw the ball yourself. Just drag it and let go.",

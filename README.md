@@ -15,8 +15,8 @@ walk to the bean bag, sit, play, react to goals, put it back).
 | `src/brain.js` | Needs, utility choice, navigation, every activity |
 | `src/physics.js` | Basketball: spin, rim, board, net, furniture, Kerry's capsule |
 | `src/screens.js` | TV match, DECK/OS + Jarvis on the Field Deck, Soko Stock globe, rack OLED, whiteboard |
-| `src/spotify.js` | Kerry's on-repeat tracks, played on the TV through Spotify's embed player |
-| `src/audio.js` | Karplus-Strong guitar, dance groove, SFX, crickets |
+| `src/spotify.js` | Kerry's Spotify liked songs, on repeat on the TV through Spotify's embed player |
+| `src/audio.js` | Karplus-Strong guitar, SFX, crickets |
 | `src/sky.js` | Window view driven by Nairobi time |
 | `src/ui.js` | HUD, panels, tour, camera, ball throwing, live screens (SokoResult monitor, Spotify TV) |
 | `src/main.js` | Renderer, lights, post-processing, adaptive quality, loop |

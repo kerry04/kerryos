@@ -104,7 +104,6 @@ export function createTV(screenMesh) {
       x.fillStyle = `hsl(${200 + i * 2}, 70%, ${45 + vizBars[i] * 25}%)`;
       x.fillRect(40 + i * ((W - 80) / vizBars.length), H - 40 - bh, (W - 80) / vizBars.length - 4, bh);
     }
-    x.font = '600 14px "IBM Plex Mono", monospace'; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('NOW PLAYING  ·  room mix', 40, 40);
   }
 
   // music on the TV (the Spotify player is drawn over this through a hole;
