@@ -32,9 +32,14 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--ink); color: var(--fg); font-family: var(--f-mono); -webkit-font-smoothing: antialiased; }
   #css3d { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
   #css3d .soko-frame { background: #fff; }
+  #css3d .tv-frame { background: #0b0b0b; display: flex; align-items: center; padding: 4px 8px; box-sizing: border-box; }
+  #css3d .tv-frame > div { width: 100%; }
+  #css3d .tv-frame iframe { width: 100%; height: 352px; background: transparent; border-radius: 12px; }
   #css3d iframe { width: 100%; height: 100%; border: 0; display: block; background: #fff; }
   body.using-soko #css3d { pointer-events: auto; }
+  body.using-soko #vignette { display: none; }
   #gl { position: fixed; inset: 0; z-index: 1; display: block; touch-action: none; }
+  #vignette { position: fixed; inset: 0; z-index: 2; pointer-events: none; background: radial-gradient(130% 110% at 50% 45%, transparent 58%, rgba(6, 6, 5, 0.32) 100%); }
   button { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 
@@ -75,6 +80,22 @@
   .p-body p { margin: 0 0 10px; font-size: 13px; line-height: 1.6; color: #cfcac0; max-width: 60ch; }
   .p-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
   .p-links a { font-size: 12px; color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--amber); padding-bottom: 1px; align-self: center; }
+  .music { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .music .now { display: flex; align-items: center; gap: 8px; margin: 6px 0 10px; }
+  .music .now-txt { flex: 1; min-width: 0; }
+  .music .now-t { font-family: var(--f-display); font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .music .now-a { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .music .ctl { width: 34px; height: 34px; padding: 0; display: grid; place-items: center; font-size: 13px; }
+  .music .ctl.main { border-color: var(--green); color: var(--green); }
+  .music ol { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow: auto; }
+  .music li { display: flex; align-items: center; gap: 6px; border-radius: 6px; }
+  .music li button { flex: 1; min-width: 0; text-align: left; background: none; border: 0; color: var(--fg); padding: 6px 6px; cursor: pointer; font: inherit; font-size: 12.5px; border-radius: 6px; }
+  .music li button:hover { background: rgba(255,255,255,.05); }
+  .music li button small { display: block; color: var(--faint); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .music li.cur button { color: var(--green); }
+  .music li a { font-size: 11px; color: var(--muted); text-decoration: none; padding: 6px; }
+  .music li a:hover { color: var(--fg); }
+  .music .fine { font-size: 11px; color: var(--faint); line-height: 1.5; margin: 10px 0 0; }
   .p-close { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; border: 0; background: transparent; color: var(--muted); font-size: 18px; cursor: pointer; border-radius: 4px; }
   .p-close:hover { color: var(--fg); background: rgba(255,255,255,.06); }
   #exit-soko { position: fixed; z-index: 8; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); display: none; }

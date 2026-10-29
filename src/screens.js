@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { canvas, canvasTexture, clamp, rand, pick } from './util.js';
+import { canvas, canvasTexture, clamp, rand, pick, nairobiTime } from './util.js';
 
 // ------------------------------------------------------------------ TV
 // An original top-down football match. Kerry's side wears sky blue. When he is
@@ -107,8 +107,26 @@ export function createTV(screenMesh) {
     x.font = '600 14px "IBM Plex Mono", monospace'; x.fillStyle = 'rgba(255,255,255,0.6)'; x.fillText('NOW PLAYING  ·  room mix', 40, 40);
   }
 
+  // music on the TV (the Spotify player is drawn over this through a hole;
+  // this is what shows while it loads)
+  let music = null, musicDrawn = null;
+  function drawMusic() {
+    x.fillStyle = '#0b0b0b'; x.fillRect(0, 0, W, H);
+    x.fillStyle = '#1db954'; x.beginPath(); x.arc(64, H / 2, 18, 0, Math.PI * 2); x.fill();
+    x.font = '700 28px Archivo, sans-serif'; x.fillStyle = '#f2f2f2'; x.fillText(music.title, 100, H / 2 - 2);
+    x.font = '500 16px "IBM Plex Mono", monospace'; x.fillStyle = '#9a9a9a'; x.fillText(music.artist, 100, H / 2 + 26);
+    tex.needsUpdate = true; musicDrawn = music;
+  }
+
   let acc = 0;
   function update(dt) {
+    if (music) {
+      screenMesh.material.color.set('#ffffff');
+      if (musicDrawn !== music) drawMusic();
+      avg.setRGB(0.2, 0.17, 0.16);
+      return;
+    }
+    musicDrawn = null;
     if (mode.value === 'off') {
       if (screenMesh.material.color.r > 0.02) { x.fillStyle = '#000'; x.fillRect(0, 0, W, H); tex.needsUpdate = true; screenMesh.material.color.set('#000000'); avg.set(0, 0, 0); }
       return;
@@ -125,7 +143,8 @@ export function createTV(screenMesh) {
   }
   return {
     update, avg, score,
-    set mode(v) { mode.value = v; }, get mode() { return mode.value; },
+    set mode(v) { mode.value = v; }, get mode() { return music ? 'music' : mode.value; },
+    set music(v) { music = v; if (!v && mode.value === 'off') screenMesh.material.color.set('#ffffff'); }, get music() { return music; },
     set onGoal(f) { onGoal = f; },
     set skill(v) { skill = v; },
     set energy(v) { vizEnergy = v; },
@@ -135,18 +154,21 @@ export function createTV(screenMesh) {
 
 // ------------------------------------------------------------------ cyberdeck terminal (Jarvis shell)
 export function createDeckScreen(mesh) {
-  const W = 512, H = 306;
+  // DECK/OS 1.0 on the Field Deck's 16:9 panel: system + power on the left,
+  // the Jarvis shell on the right. Kerry's typing drives the shell.
+  const W = 1024, H = 578;
   const [c, x] = canvas(W, H);
   const tex = canvasTexture(c, { aniso: 4 });
   mesh.material.map = tex; mesh.material.needsUpdate = true;
+  if (mesh.material.emissiveMap !== undefined) { mesh.material.emissiveMap = tex; mesh.material.needsUpdate = true; }
   const script = [
     ['$ ', 'jarvis brief'],
     ['', 'inbox     14 new · 3 want a reply · 2 drafts ready'],
     ['', 'calendar  Soko AI review, Thu 14:00'],
     ['', 'waiting   2 actions need your one-tap approval'],
     ['$ ', 'jarvis drafts --show 1'],
-    ['', 're: chart spec — "Sending the YES/NO bar mock tonight."'],
-    ['', '[approve] [edit] [discard]   (nothing sends without you)'],
+    ['', 're: chart spec  "Sending the YES/NO bar mock tonight."'],
+    ['', '[approve] [edit] [discard]  nothing sends without you'],
     ['$ ', 'kerryos status'],
     ['', 'broker    up · sessions 1/1 · queue 0'],
     ['', 'egress    allowlist enforced · blocked 0 in 24h'],
@@ -157,42 +179,98 @@ export function createDeckScreen(mesh) {
     ['$ ', 'make test'],
     ['', '✓ 214 passed  (12.8s)'],
   ];
-  // the screen keeps the last session's output between uses
-  let line = 0, ch = 0, history = script.map(([p, t]) => [p, t]), cursor = 0, idleT = 0;
-  function render() {
-    x.fillStyle = '#0b0d0c'; x.fillRect(0, 0, W, H);
-    x.font = '500 15px "IBM Plex Mono", monospace';
-    const lh = 19;
+  let line = 0, ch = 0, history = script.map(([p, t]) => [p, t]), cursor = 0, idleT = 0, t = 0;
+  const MONO = '"IBM Plex Mono", monospace';
+  function bar(bx, by, w, f, col) {
+    x.fillStyle = 'rgba(255,255,255,0.10)'; x.fillRect(bx, by, w, 10);
+    x.fillStyle = col; x.fillRect(bx, by, w * clamp(f, 0, 1), 10);
+  }
+  function render(active) {
+    x.fillStyle = '#0a0d0a'; x.fillRect(0, 0, W, H);
+    x.strokeStyle = 'rgba(255,176,0,0.07)'; x.lineWidth = 1;
+    x.beginPath();
+    for (let gx = 0; gx <= W; gx += 64) { x.moveTo(gx + 0.5, 0); x.lineTo(gx + 0.5, H); }
+    for (let gy = 0; gy <= H; gy += 64) { x.moveTo(0, gy + 0.5); x.lineTo(W, gy + 0.5); }
+    x.stroke();
+    // header
+    const nt = nairobiTime();
+    x.textAlign = 'left'; x.fillStyle = '#ffb000'; x.font = `600 24px ${MONO}`;
+    x.fillText('DECK/OS 1.0 — FIELD UNIT 01', 28, 42);
+    x.textAlign = 'right'; x.fillStyle = '#e8e2d2';
+    x.fillText(`${nt.label}:${String(nt.s).padStart(2, '0')} EAT`, W - 28, 42);
+    x.fillStyle = '#ffb000'; x.fillRect(0, 60, W, 3);
+    // system column
+    const load = active ? 1 : 0;
+    const watts = Math.round(24 + load * 22 + Math.sin(t / 0.9) * 4 + Math.sin(t / 0.31) * 2);
+    const temp = Math.round(48 + load * 12 + Math.sin(t / 1.4) * 2);
+    x.textAlign = 'left'; x.font = `600 18px ${MONO}`; x.fillStyle = '#8fd0a0';
+    x.fillText('SYSTEM', 28, 100);
+    x.font = `17px ${MONO}`; x.fillStyle = '#cfd4c8';
+    x.fillText('CPU  i5-14400', 28, 132);
+    x.fillText(`DRAW ${watts}W · ${temp}°C`, 28, 158); bar(28, 170, 290, watts / 100, '#ffb000');
+    x.fillText('RAM  15.2 / 32 GB', 28, 210); bar(28, 222, 290, 0.48, '#8fd0a0');
+    x.fillText('SSD  NVMe · 61% free', 28, 262); bar(28, 274, 290, 0.39, '#8fd0a0');
+    x.fillText(`FAN  ${Math.round(1050 + load * 180 + Math.sin(t / 0.7) * 60)} RPM`, 28, 312);
+    // power
+    x.font = `600 18px ${MONO}`; x.fillStyle = '#8fd0a0';
+    x.fillText('POWER — POWERJET 130', 28, 362);
+    x.fillStyle = '#ffb000'; x.font = `700 58px ${MONO}`;
+    x.fillText('87%', 28, 424);
+    x.font = `16px ${MONO}`; x.fillStyle = '#cfd4c8';
+    x.fillText('100W OUT · USB-C PD', 160, 400);
+    x.fillText('EST. ~2H 05M', 160, 422);
+    bar(28, 440, 290, 0.87, '#ffb000');
+    // waveform + prompt
+    x.strokeStyle = '#ffb000'; x.lineWidth = 2; x.beginPath();
+    for (let wx = 0; wx <= 290; wx += 5) {
+      const wy = 494 + Math.sin(wx / 22 + t * 4) * (6 + load * 10) * Math.sin(wx / 92);
+      wx ? x.lineTo(28 + wx, wy) : x.moveTo(28, wy);
+    }
+    x.stroke();
+    x.font = `18px ${MONO}`; x.fillStyle = '#e8e2d2';
+    x.fillText('$ deck' + (Math.floor(t * 1.9) % 2 ? ' _' : ''), 28, 548);
+    // Jarvis shell panel
+    const px = 350, py = 84, pw = W - px - 24, ph = H - py - 24;
+    x.fillStyle = '#060806'; x.fillRect(px, py, pw, ph);
+    x.strokeStyle = 'rgba(255,176,0,0.45)'; x.lineWidth = 2; x.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
+    x.fillStyle = 'rgba(255,176,0,0.14)'; x.fillRect(px + 2, py + 2, pw - 4, 30);
+    x.font = `600 15px ${MONO}`; x.fillStyle = '#ffb000';
+    x.fillText('JARVIS · local · approvals required', px + 14, py + 22);
+    x.textAlign = 'right'; x.fillStyle = active ? '#8fd0a0' : '#68705f';
+    x.fillText(active ? '● LIVE' : '○ IDLE', px + pw - 14, py + 22);
+    x.textAlign = 'left';
+    x.font = `500 15.5px ${MONO}`;
+    const lh = 22;
     const shown = [...history];
     if (line < script.length) shown.push([script[line][0], script[line][1].slice(0, ch), true]);
-    const start = Math.max(0, shown.length - 14);
-    shown.slice(start).forEach(([p, t, live], i) => {
-      x.fillStyle = p ? '#e9b44c' : '#9fb3a4';
-      x.fillText(p, 12, 26 + i * lh);
+    const rows = Math.floor((ph - 52) / lh);
+    shown.slice(Math.max(0, shown.length - rows)).forEach(([p, s, live], i) => {
+      const ty = py + 60 + i * lh;
+      x.fillStyle = '#e9b44c'; x.fillText(p, px + 14, ty);
       x.fillStyle = p ? '#e7e3d6' : '#8fa597';
-      x.fillText(t, 12 + (p ? 18 : 0), 26 + i * lh);
+      x.fillText(s, px + 14 + (p ? 20 : 0), ty);
       if (live && Math.floor(cursor * 2) % 2 === 0) {
-        const w = x.measureText(t).width;
-        x.fillStyle = '#e9b44c'; x.fillRect(12 + (p ? 18 : 0) + w + 2, 13 + i * lh, 8, 15);
+        const w = x.measureText(s).width;
+        x.fillStyle = '#ffb000'; x.fillRect(px + 16 + (p ? 20 : 0) + w, ty - 14, 9, 17);
       }
     });
-    // subtle scanline
-    x.fillStyle = 'rgba(0,0,0,0.12)';
-    for (let y = 0; y < H; y += 3) x.fillRect(0, y, W, 1);
+    x.textAlign = 'right'; x.fillStyle = '#4f5648'; x.font = `13px ${MONO}`;
+    x.fillText('PANEL LQ156D1JX41 · 4K', W - 30, H - 32);
+    x.textAlign = 'left';
     tex.needsUpdate = true;
   }
-  render();
-  let acc = 0;
+  render(false);
+  let acc = 0, since = 0;
   return {
     // returns true when a key was "pressed" this frame
     update(dt, active) {
-      cursor += dt;
-      acc += dt;
+      cursor += dt; t += dt;
+      acc += dt; since += dt;
       let pressed = false;
       if (active) {
         const cur = script[line];
-        if (!cur) { history.push(['$ ', 'clear']); history = []; line = 0; ch = 0; }
-        else if (cur[0] === '') { // output appears instantly after a short pause
+        if (!cur) { history = []; line = 0; ch = 0; }
+        else if (cur[0] === '') {
           idleT += dt;
           if (idleT > 0.35) { history.push([cur[0], cur[1]]); line++; ch = 0; idleT = 0; }
         } else if (ch < cur[1].length) {
@@ -202,7 +280,8 @@ export function createDeckScreen(mesh) {
           if (idleT > 0.5) { history.push([cur[0], cur[1]]); line++; ch = 0; idleT = 0; pressed = true; }
         }
       }
-      if (acc > 1 / 20 || pressed) render();
+      // ~12 fps while he works, ~2 fps for the clock and meters otherwise
+      if (since > (active ? 1 / 12 : 0.5)) { render(active); since = 0; }
       return pressed;
     },
   };

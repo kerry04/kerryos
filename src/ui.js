@@ -4,13 +4,14 @@ import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer
 import { SPOTS, TOUR, TOUR_LINES, LINKS } from './config.js';
 import { clamp, easeInOut, nairobiTime, canvas, canvasTexture } from './util.js';
 import { ROOM } from './room.js';
+import { createSpotify } from './spotify.js';
 
 export const HOME = { pos: new THREE.Vector3(5.4, 4.15, 6.1), target: new THREE.Vector3(-0.55, 0.95, -0.75) };
 
 const VIEWS = {
-  soko: [[-0.7, 1.42, -1.6], [-1.6, 1.24, -2.82]],
+  soko: [[-0.7, 1.45, -1.6], [-1.6, 1.33, -2.82]],
   stock: [[-1.55, 1.35, -1.7], [-2.38, 1.12, -2.68]],
-  deck: [[-1.0, 1.32, -1.75], [-1.6, 0.86, -2.45]],
+  deck: [[-1.25, 1.2, -1.85], [-1.6, 0.88, -2.5]],
   rack: [[0.55, 1.25, -1.25], [-0.35, 0.7, -2.7]],
   board: [[-1.25, 1.62, -0.95], [-3.47, 1.48, -1.2]],
   window: [[-0.45, 1.55, -0.6], [-1.55, 1.62, -3.0]],
@@ -76,46 +77,51 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
       const b = document.createElement('button'); b.className = 'btn'; b.textContent = 'Use it here'; b.onclick = () => useSoko(true); links.prepend(b);
     }
     panel.dataset.id = id;
+    panel.querySelector('.music')?.remove();
+    if (id === 'tv') renderMusic();
     panel.hidden = false;
     requestAnimationFrame(() => panel.classList.add('open'));
   }
   function closePanel() { panel.classList.remove('open'); setTimeout(() => { if (!panel.classList.contains('open')) panel.hidden = true; }, 250); }
   $('#panel .p-close').onclick = () => { closePanel(); if (!ui.tour) flyTo(HOME.pos, HOME.target); };
 
-  // --------------------------------------------------------- SokoResult live screen (CSS3D behind a hole in the canvas)
+  // --------------------------------------------------------- live screens (CSS3D behind holes in the canvas)
+  // SokoResult on the monitor, Spotify on the TV. Each is a real web page
+  // positioned in 3D behind the WebGL canvas; a "hole" pass clears the canvas
+  // where the screen is visible and nothing stands in front of it.
   const cssRenderer = new CSS3DRenderer();
   cssRenderer.domElement.id = 'css3d';
   document.body.prepend(cssRenderer.domElement);
-  const IFW = 1280, IFH = 720;
+  const cssScene = new THREE.Scene();
+  const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.ZeroFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.ZeroFactor, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const holeScene = new THREE.Scene();
+  const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
+  const surfaces = [];
+  function surface(mesh, width, pxW, pxH, el) {
+    el.style.width = pxW + 'px'; el.style.height = pxH + 'px';
+    const obj = new CSS3DObject(el); obj.visible = false; cssScene.add(obj);
+    const hole = new THREE.Mesh(mesh.geometry, holeMat); hole.matrixAutoUpdate = false; holeScene.add(hole);
+    const sf = { mesh, obj, hole, on: false, sync() {
+      mesh.updateMatrixWorld(true);
+      mesh.matrixWorld.decompose(obj.position, obj.quaternion, obj.scale);
+      obj.scale.setScalar(width / pxW);
+      hole.matrix.copy(mesh.matrixWorld); hole.matrixWorld.copy(mesh.matrixWorld);
+    } };
+    sf.sync(); surfaces.push(sf);
+    return sf;
+  }
+  // SokoResult
   const frameWrap = document.createElement('div');
   frameWrap.className = 'soko-frame';
-  frameWrap.style.width = IFW + 'px'; frameWrap.style.height = IFH + 'px';
   const iframe = document.createElement('iframe');
   iframe.title = 'SokoResult (live)';
   iframe.setAttribute('allow', 'clipboard-write');
   iframe.referrerPolicy = 'strict-origin-when-cross-origin';
   frameWrap.appendChild(iframe);
-  const cssObj = new CSS3DObject(frameWrap);
-  const cssScene = new THREE.Scene();
-  cssScene.add(cssObj);
-  const sokoMesh = room.props.sokoScreen;
-  const [sw] = room.props.sokoSize;
-  function syncCss() {
-    sokoMesh.updateMatrixWorld(true);
-    sokoMesh.matrixWorld.decompose(cssObj.position, cssObj.quaternion, cssObj.scale);
-    cssObj.scale.setScalar(sw / IFW);
-  }
-  syncCss();
-  // the hole: writes transparent pixels where the monitor is visible
-  const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000, blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.ZeroFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.ZeroFactor, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
-  const hole = new THREE.Mesh(sokoMesh.geometry, holeMat);
-  const holeScene = new THREE.Scene(); holeScene.add(hole);
-  hole.matrixAutoUpdate = false;
-  const depthOnly = new THREE.MeshBasicMaterial({ colorWrite: false });
-  let liveEnabled = false;
+  const sokoSurf = surface(room.props.sokoScreen, room.props.sokoSize[0], 1280, 720, frameWrap);
   function enableLive() {
-    if (liveEnabled) return;
-    liveEnabled = true;
+    if (sokoSurf.on) return;
+    sokoSurf.on = true; sokoSurf.obj.visible = true;
     iframe.src = LINKS.soko;
   }
   let using = false;
@@ -123,22 +129,40 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
     using = on;
     document.body.classList.toggle('using-soko', on);
     renderer.domElement.style.pointerEvents = on ? 'none' : '';
-    if (on) { flyTo(new THREE.Vector3(-1.6, 1.24, -2.05), new THREE.Vector3(-1.6, 1.24, -2.82), 1.1); closePanel(); }
+    if (on) { flyTo(new THREE.Vector3(-1.6, 1.33, -2.05), new THREE.Vector3(-1.6, 1.33, -2.82), 1.1); closePanel(); }
     else flyTo(new THREE.Vector3(...VIEWS.soko[0]), new THREE.Vector3(...VIEWS.soko[1]));
   }
   $('#exit-soko').onclick = () => useSoko(false);
 
+  // Spotify on the TV
+  const tvWrap = document.createElement('div');
+  tvWrap.className = 'tv-frame';
+  const tvSurf = surface(room.props.tvScreen, room.props.tvSize[0], 640, 360, tvWrap);
+  const music = createSpotify(tvWrap);
+  music.onChange((st) => {
+    tvSurf.on = st.on; tvSurf.obj.visible = st.on;
+    screens.tv.music = st.on ? music.tracks[st.index] : null;
+    if (ui.brain) ui.brain.setMusic(st.on && (st.playing || st.buffering));
+    if (panel.dataset.id === 'tv' && !panel.hidden) renderMusic();
+  });
+
   function renderLive() {
-    if (!liveEnabled) return;
-    syncCss();
-    // only bother when the monitor is in view
-    const p = sokoMesh.getWorldPosition(new THREE.Vector3()).project(camera);
-    const inView = p.z < 1 && Math.abs(p.x) < 1.3 && Math.abs(p.y) < 1.3;
-    cssRenderer.domElement.style.visibility = inView ? 'visible' : 'hidden';
-    if (!inView) return;
+    const live = surfaces.filter((sf) => sf.on);
+    if (!live.length) return;
+    const tmp = new THREE.Vector3();
+    let any = false;
+    for (const sf of live) {
+      sf.sync();
+      const p = sf.mesh.getWorldPosition(tmp).project(camera);
+      sf.hole.visible = p.z < 1 && Math.abs(p.x) < 1.4 && Math.abs(p.y) < 1.4;
+      any ||= sf.hole.visible;
+    }
+    for (const sf of surfaces) if (!sf.on) sf.hole.visible = false;
+    cssRenderer.domElement.style.visibility = any ? 'visible' : 'hidden';
+    if (!any) return;
     renderer.autoClear = false;
     renderer.clearDepth();
-    // depth of whatever could stand in front of the monitor (layer 2 only)
+    // depth of whatever could stand in front of a screen (layer 2 only)
     scene.overrideMaterial = depthOnly;
     const bg = scene.background; scene.background = null;
     camera.layers.set(2);
@@ -146,11 +170,43 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
     camera.layers.set(0);
     scene.background = bg;
     scene.overrideMaterial = null;
-    hole.matrix.copy(sokoMesh.matrixWorld);
-    hole.matrixWorld.copy(sokoMesh.matrixWorld);
     renderer.render(holeScene, camera);
     renderer.autoClear = true;
     cssRenderer.render(cssScene, camera);
+  }
+
+  // the TV panel doubles as the music player
+  function renderMusic() {
+    let box = panel.querySelector('.music');
+    const st = music.state, cur = music.tracks[st.index];
+    const sig = [st.on, st.index, st.playing, st.buffering, st.error].join('|');
+    if (box && box.dataset.sig === sig) return;
+    if (!box) { box = document.createElement('div'); box.className = 'music'; panel.querySelector('.p-links').after(box); }
+    const scroll = box.querySelector('ol')?.scrollTop || 0;
+    box.dataset.sig = sig;
+    box.innerHTML = '';
+    const lab = document.createElement('div'); lab.className = 'label'; lab.textContent = 'On repeat · from Kerry’s Spotify';
+    const now = document.createElement('div'); now.className = 'now';
+    const btn = (txt, title, fn, cls = '') => { const b = document.createElement('button'); b.className = 'btn ctl ' + cls; b.textContent = txt; b.title = title; b.setAttribute('aria-label', title); b.onclick = fn; return b; };
+    const txt = document.createElement('div'); txt.className = 'now-txt';
+    txt.innerHTML = `<div class="now-t"></div><div class="now-a"></div>`;
+    txt.firstChild.textContent = st.on ? cur.title : 'Put a track on the TV';
+    txt.lastChild.textContent = st.error ? 'Spotify’s player didn’t load. Try again, or open a track below.' : st.on ? `${cur.artist}${st.buffering ? ' · loading' : st.playing ? ' · playing' : ' · paused'}` : 'Kerry will hear it too.';
+    now.append(btn('⏮', 'Previous track', () => music.prev()), btn(st.on && st.playing ? '❚❚' : '▶', st.on && st.playing ? 'Pause' : 'Play on the TV', () => (st.on ? music.toggle() : music.play()), 'main'), btn('⏭', 'Next track', () => music.next()), txt);
+    if (st.on) now.append(btn('✕', 'Turn the music off', () => music.stop()));
+    const ol = document.createElement('ol');
+    music.tracks.forEach((t, i) => {
+      const li = document.createElement('li'); if (st.on && i === st.index) li.className = 'cur';
+      const b = document.createElement('button'); b.textContent = t.title;
+      const sm = document.createElement('small'); sm.textContent = t.artist; b.appendChild(sm);
+      b.onclick = () => music.play(i);
+      const a = document.createElement('a'); a.href = t.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Spotify ↗'; a.title = `Open ${t.title} in Spotify`;
+      li.append(b, a); ol.appendChild(li);
+    });
+    const fine = document.createElement('p'); fine.className = 'fine';
+    fine.textContent = 'Plays through Spotify’s own player: full tracks if you’re signed in to Spotify in this browser, 30-second previews if not.';
+    box.append(lab, now, ol, fine);
+    ol.scrollTop = scroll;
   }
 
   // --------------------------------------------------------- picking
@@ -402,5 +458,5 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
     }
   }
 
-  return Object.assign(ui, { update, renderLive, flyTo, flyToSpot, openPanel, enableLive, cssRenderer, setSize(w, h) { cssRenderer.setSize(w, h); } });
+  return Object.assign(ui, { update, renderLive, flyTo, flyToSpot, openPanel, enableLive, cssRenderer, music, setSize(w, h) { cssRenderer.setSize(w, h); } });
 }

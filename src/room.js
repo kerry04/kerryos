@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ASSETS } from './config.js';
 import * as TX from './textures.js';
-import { canvas, canvasTexture, shadowAll, rand, makeNoise, lerp } from './util.js';
+import { canvas, canvasTexture, shadowAll, rand, makeNoise, lerp, normalFromHeight } from './util.js';
 
 export const ROOM = { minX: -3.5, maxX: 3.5, minZ: -3, maxZ: 3, H: 2.8, T: 0.15 };
 export const WINDOW = { x0: -2.45, x1: -0.65, y0: 1.0, y1: 2.3 };
@@ -242,9 +243,10 @@ export function buildRoom(manager) {
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ color: '#0d0f12', toneMapped: false }));
     screen.position.z = 0.0002; mon.add(screen);
     // stand
-    mesh(new THREE.BoxGeometry(0.05, 0.3, 0.02), M.alu, 0, -0.2, -0.06, mon);
-    mesh(rbox(0.24, 0.012, 0.18, 0.004), M.alu, 0, -sh / 2 - 0.25 + 0.006 - 0.0, -0.03, mon);
-    mon.position.set(-1.6, top + 0.25 + sh / 2 + 0.015, -2.82);
+    // tall stand so the deck's lid sits below the screen
+    mesh(new THREE.BoxGeometry(0.05, 0.44, 0.02), M.alu, 0, -0.27, -0.06, mon);
+    mesh(rbox(0.24, 0.012, 0.18, 0.004), M.alu, 0, -sh / 2 - 0.385, -0.03, mon);
+    mon.position.set(-1.6, top + 0.39 + sh / 2 + 0.015, -2.82);
     group.add(mon);
     props.sokoScreen = screen; props.sokoSize = [sw, sh];
     hot('soko', screen); hot('soko', mon.children[0]);
@@ -265,7 +267,7 @@ export function buildRoom(manager) {
 
     // cyberdeck
     const deck = buildCyberdeck(M);
-    deck.group.position.set(-1.6, top, -2.42);
+    deck.group.position.set(-1.6, top, -2.43);
     group.add(deck.group);
     props.deck = deck;
     hot('deck', deck.group);
@@ -391,25 +393,28 @@ export function buildRoom(manager) {
     const duvet = new THREE.Mesh(duvetGeo, duvetMat);
     duvet.castShadow = true; duvet.receiveShadow = true;
     g.add(duvet);
-    const bodyX = cx;
-    const seg = (z, za, zb, w, h, sx) => {
-      const zc = Math.min(Math.max(z, za), zb);
-      const dz = Math.abs(z - zc);
-      const lat = Math.abs(sx);
-      const fz = Math.max(0, 1 - dz / 0.16);
-      const fl = 1 - Math.min(1, Math.max(0, (lat - w * 0.55) / (w * 0.45 + 0.16)));
-      return h * fz * (fl * fl * (3 - 2 * fl));
+    // the body under the cover: plan-view capsules from Kerry's actual bones,
+    // each with the height of its top surface ({ a:[x,z,top], b:[x,z,top], r })
+    let body = [];
+    const base = mTop + 0.045;
+    const bump = (x, z) => {
+      let best = 0;
+      for (const sg of body) {
+        const [ax, az, ay] = sg.a, [bx, bz, by] = sg.b;
+        const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1e-6;
+        const k = Math.min(1, Math.max(0, ((x - ax) * dx + (z - az) * dz) / L2));
+        const d = Math.hypot(x - (ax + dx * k), z - (az + dz * k));
+        const top = ay + (by - ay) * k - base;
+        if (top <= 0) continue;
+        const f = 1 - Math.min(1, Math.max(0, (d - sg.r * 0.6) / (sg.r * 0.4 + 0.2)));
+        best = Math.max(best, top * f * f * (3 - 2 * f));
+      }
+      return best;
     };
-    const bump = (sx, z) => Math.max(
-      seg(z, -2.2, -1.62, 0.34, 0.22, sx),
-      seg(z, -1.62, -1.3, 0.3, 0.21, sx),
-      seg(z, -1.3, -1.06, 0.24, 0.19, sx),
-      seg(z, -1.06, -0.96, 0.22, 0.17, sx),
-      seg(z, -1.25, -0.93, 0.15, 0.26, sx - 0.1), seg(z, -1.25, -0.93, 0.15, 0.26, sx + 0.1)
-    );
+    let zCover = -2.08;
     function setCover(t) {
       const p = duvetGeo.attributes.position;
-      const zTop = lerp(-2.2, -2.08, t);
+      const zTop = lerp(-2.2, zCover, t);
       const Wc = bw + 2 * drape, Lc = (z1 - zTop) + footDrape;
       for (let j = 0; j <= VL; j++) {
         const v = j / VL;
@@ -424,7 +429,7 @@ export function buildRoom(manager) {
           const fold = Math.exp(-along / 0.07) * 0.03 + (along < 0.18 ? 0.012 : 0);
           if (Math.abs(sx) <= bw / 2) {
             x = cx + sx;
-            y = mTop + 0.045 + bump(sx, z) * t + wr + fold;
+            y = mTop + 0.045 + (t > 0 ? bump(cx + sx, z) * t : 0) + wr + fold;
           } else {
             const d = Math.abs(sx) - bw / 2;
             x = cx + Math.sign(sx) * (bw / 2 + 0.035 * Math.min(1, d / 0.06) + d * 0.04);
@@ -443,7 +448,8 @@ export function buildRoom(manager) {
     const throwM = mesh(rbox(bw + 0.06, 0.022, 0.4, 0.01, 3), M.knit, cx, mTop + 0.075, z1 - 0.3, g);
     group.add(g);
     duvet.userData.dynamic = true; throwM.userData.dynamic = true;
-    props.bed = { duvet, setCover, mattress, throwM, throwY: throwM.position.y };
+    const setBody = (segs, zTop = -2.08) => { body = segs; zCover = zTop; };
+    props.bed = { duvet, setCover, setBody, mattress, throwM, throwY: throwM.position.y, top: mTop };
     hot('bed', mattress); hot('bed', duvet);
     addCollider([x0, 0, minZ], [maxX, 0.6, z1 + 0.02], { rest: 0.25, soft: true, rolloff: [-1, 0, 0.35] });
     anchors.sleep = { approach: new THREE.Vector3(1.55, 0, -1.65), lie: new THREE.Vector3(2.62, 0.6, -1.7), facing: 0 };
@@ -720,6 +726,7 @@ export function buildRoom(manager) {
   anchors.hoops = { pos: new THREE.Vector3(0.7, 0, 0.35), facing: Math.PI };
 
   shadowAll(group, true, true);
+  group.add(buildGrounding(colliders, { minX, minZ, maxX, maxZ, H }));
   // flat decals and screens shouldn't cast
   [props.sokoScreen, props.stockScreen, props.tvScreen, props.windowGlass].forEach((m) => { if (m) m.castShadow = false; });
 
@@ -727,90 +734,209 @@ export function buildRoom(manager) {
 }
 
 // ---------------------------------------------------------------------------
-// Cyberdeck: hard case, hinged lid with a 7" screen, 40% ortholinear board,
-// trackball, encoder knob, SMA antenna, latches.
-function buildCyberdeck(M) {
+// Grounding: soft contact shadows under everything that stands on the floor,
+// plus ambient occlusion where the floor meets the walls and in the corner.
+// The sun's shadow map is too coarse to give furniture that dark, tight
+// contact line, and without it everything looks like it floats.
+function buildGrounding(colliders, { minX, minZ, H }) {
   const g = new THREE.Group();
-  const W = 0.36, D = 0.25, Hb = 0.055;
-  mesh(rbox(W, Hb, D, 0.012, 3), M.deckShell, 0, Hb / 2, 0, g);
-  // inset deck plate
-  mesh(rbox(W - 0.03, 0.006, D - 0.06, 0.004), M.plasticMatte, 0, Hb + 0.001, 0.012, g);
-  // keyboard: 12 x 4 keys
-  const keyGeo = rbox(0.0175, 0.009, 0.0175, 0.003, 2);
-  const cols = 12, rows = 4, pitch = 0.0205;
-  const keys = new THREE.InstancedMesh(keyGeo, M.capDark, cols * rows);
-  const keysLight = new THREE.InstancedMesh(keyGeo, M.capLight, cols * rows);
-  const keysAccent = new THREE.InstancedMesh(keyGeo, M.capAccent, 4);
-  const dummy = new THREE.Object3D();
-  let nd = 0, nl = 0, na = 0;
-  const keyIndex = [];
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const x = (c - (cols - 1) / 2) * pitch - 0.035, z = (r - (rows - 1) / 2) * pitch + 0.03;
-    dummy.position.set(x, Hb + 0.0085, z); dummy.updateMatrix();
-    const mod = c === 0 || c === cols - 1 || r === rows - 1;
-    const accent = (r === 0 && c === 0) || (r === 3 && (c === 5 || c === 6)) || (r === 2 && c === 11);
-    if (accent) { keysAccent.setMatrixAt(na, dummy.matrix); keyIndex.push(['a', na++, x, z]); }
-    else if (mod) { keysLight.setMatrixAt(nl, dummy.matrix); keyIndex.push(['l', nl++, x, z]); }
-    else { keys.setMatrixAt(nd, dummy.matrix); keyIndex.push(['d', nd++, x, z]); }
+  // a blurred rounded rectangle; stretched per footprint
+  const blob = (() => {
+    const [c, x] = canvas(128, 128);
+    x.fillStyle = '#000'; x.fillRect(0, 0, 128, 128);
+    // blur via the shadow of an off-canvas shape (ctx.filter isn't everywhere)
+    x.shadowColor = '#fff'; x.shadowBlur = 20; x.shadowOffsetX = 1000;
+    x.fillStyle = '#fff';
+    x.beginPath(); x.roundRect(30 - 1000, 30, 68, 68, 18); x.fill();
+    return canvasTexture(c, { srgb: false });
+  })();
+  const decal = (map, opacity) => new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: map, transparent: true, opacity, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const geos = [];
+  for (const c of colliders) {
+    if (c.min.y > 0.01) continue;
+    const w = c.max.x - c.min.x, d = c.max.z - c.min.z;
+    // the blob's dark core is the middle ~55% of the texture
+    const pg = new THREE.PlaneGeometry(w / 0.47 + 0.1, d / 0.47 + 0.1);
+    pg.rotateX(-Math.PI / 2);
+    pg.translate((c.min.x + c.max.x) / 2, 0.003, (c.min.z + c.max.z) / 2);
+    geos.push(pg);
   }
-  keys.count = nd; keysLight.count = nl; keysAccent.count = na;
-  for (const k of [keys, keysLight, keysAccent]) { k.castShadow = true; k.receiveShadow = true; k.instanceMatrix.setUsage(THREE.DynamicDrawUsage); g.add(k); }
-  // trackball
-  mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.006, 24), M.plasticBlack, 0.135, Hb + 0.004, 0.03, g);
-  mesh(new THREE.SphereGeometry(0.0145, 24, 16), new THREE.MeshPhysicalMaterial({ color: '#a3271d', roughness: 0.25, clearcoat: 1 }), 0.135, Hb + 0.012, 0.03, g);
-  // encoder knob (knurled)
-  const knob = mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.012, 20), M.alu, 0.135, Hb + 0.008, -0.03, g);
-  // latches on the front
-  for (const s of [-1, 1]) mesh(rbox(0.04, 0.02, 0.008, 0.003), M.blackMetal, s * 0.11, Hb * 0.6, D / 2 + 0.003, g);
-  // label plate
-  const [lc, lx] = canvas(256, 48);
-  lx.fillStyle = '#b9bcc0'; lx.fillRect(0, 0, 256, 48); lx.fillStyle = '#1a1b1e'; lx.font = '600 26px "IBM Plex Mono", monospace'; lx.fillText('KD-01  //  KERRY', 12, 33);
-  const plate = mesh(new THREE.PlaneGeometry(0.07, 0.013), new THREE.MeshStandardMaterial({ map: canvasTexture(lc), metalness: 0.8, roughness: 0.35 }), 0, Hb * 0.45, D / 2 + 0.0005, g);
-  plate.castShadow = false;
+  if (geos.length) {
+    const m = new THREE.Mesh(mergeGeometries(geos, false), decal(blob, 0.78));
+    m.renderOrder = -1; m.receiveShadow = false; m.castShadow = false;
+    g.add(m);
+  }
+  // floor-wall and corner occlusion: a gradient that fades away from the wall
+  const ramp = (() => {
+    const [c, x] = canvas(4, 128);
+    const gr = x.createLinearGradient(0, 0, 0, 128);
+    gr.addColorStop(0, '#fff'); gr.addColorStop(0.35, '#555'); gr.addColorStop(1, '#000');
+    x.fillStyle = gr; x.fillRect(0, 0, 4, 128);
+    return canvasTexture(c, { srgb: false });
+  })();
+  const aoMat = decal(ramp, 0.5);
+  const strip = (len, wid, place) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(len, wid), aoMat); place(m); m.renderOrder = -1; g.add(m); return m; };
+  const L = 7.2, R = 0.32;
+  // floor along the back wall (z = minZ) and the side wall (x = minX)
+  strip(L, R, (m) => { m.rotation.x = -Math.PI / 2; m.position.set(0, 0.004, minZ + R / 2); });
+  strip(6.2, R, (m) => { m.rotation.set(-Math.PI / 2, 0, Math.PI / 2); m.position.set(minX + R / 2, 0.004, 0); });
+  // up the walls from the floor
+  strip(L, 0.22, (m) => { m.position.set(0, 0.11, minZ + 0.004); m.rotation.z = Math.PI; });
+  strip(6.2, 0.22, (m) => { m.rotation.set(0, Math.PI / 2, Math.PI); m.position.set(minX + 0.004, 0.11, 0); });
+  // the inside corner, floor to ceiling
+  strip(H, 0.3, (m) => { m.rotation.set(0, 0, Math.PI / 2); m.position.set(minX + 0.15, H / 2, minZ + 0.004); });
+  strip(H, 0.3, (m) => { m.rotation.set(0, Math.PI / 2, -Math.PI / 2); m.position.set(minX + 0.004, H / 2, minZ + 0.15); });
+  g.traverse((o) => { o.castShadow = false; o.receiveShadow = false; });
+  return g;
+}
 
+// ---------------------------------------------------------------------------
+// Field Deck 01 — Kerry's actual cyberdeck build, modelled from his concept:
+// PETG shell with rubber corner bumpers, raised Toughbook-style hinges, a
+// salvaged 15.6" 4K Dell panel in the lid, amber LED strip, Logitech K400 Plus
+// slab (keys + touchpad), stripped USB speakers, PowerJet 130 bank in the rear
+// bay with its LCD, side ports and rear vents. Built in concept units and
+// scaled so the K400 slab is its real 354 mm.
+function buildCyberdeck(M) {
+  const S = 0.1157;
+  const g = new THREE.Group();
+  const u = new THREE.Group(); // unit space
+  u.scale.setScalar(S);
+  g.add(u);
+  // printed-shell layer lines
+  const layers = (() => {
+    const [c, x] = canvas(256, 256);
+    for (let y = 0; y < 256; y++) { const v = 128 + Math.sin(y * 1.6) * 40 + (Math.random() - 0.5) * 18; x.fillStyle = `rgb(${v},${v},${v})`; x.fillRect(0, y, 256, 1); }
+    const n = normalFromHeight((i, j) => Math.sin(j * 1.6) * 0.5 + 0.5, 128, 128, 1.2);
+    return canvasTexture(n, { srgb: false, repeat: [6, 6] });
+  })();
+  const caseMat = new THREE.MeshStandardMaterial({ color: '#3a3e42', roughness: 0.55, metalness: 0.18, normalMap: layers, normalScale: new THREE.Vector2(0.18, 0.18) });
+  const caseDark = new THREE.MeshStandardMaterial({ color: '#25282b', roughness: 0.62, metalness: 0.15 });
+  const deckPlate = new THREE.MeshStandardMaterial({ color: '#2c2f32', roughness: 0.58, metalness: 0.2 });
+  const rubber = new THREE.MeshStandardMaterial({ color: '#141516', roughness: 0.92 });
+  const keyMat = new THREE.MeshStandardMaterial({ color: '#1c1e20', roughness: 0.7 });
+  const keyMat2 = new THREE.MeshStandardMaterial({ color: '#25272a', roughness: 0.7 });
+  const portMat = new THREE.MeshStandardMaterial({ color: '#0a0b0c', roughness: 0.5, metalness: 0.3 });
+  const metal = new THREE.MeshStandardMaterial({ color: '#9aa0a4', roughness: 0.35, metalness: 0.85 });
+  const amber = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.64, 0.05).multiplyScalar(2.4), toneMapped: false });
+  const amberDim = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.64, 0.05).multiplyScalar(1.3), toneMapped: false });
+  const B = (w, h, d, mat, x, y, z, parent = u, r = 0.025) => mesh(rbox(w, h, d, r, 2), mat, x, y, z, parent);
+  const C = (rt, rb, h, mat, x, y, z, parent = u, seg = 20) => mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat, x, y, z, parent);
+
+  const BW = 3.62, BD = 2.52, BH = 0.34;
+  // shell
+  B(BW, BH, BD, caseMat, 0, BH / 2, 0, u, 0.06);
+  B(BW + 0.06, 0.07, BD + 0.06, caseDark, 0, 0.035, 0, u, 0.02);
+  B(BW - 0.1, 0.05, BD - 0.1, deckPlate, 0, BH + 0.012, 0, u, 0.02);
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) B(0.3, BH + 0.1, 0.3, rubber, sx * (BW / 2 - 0.02), BH / 2, sz * (BD / 2 - 0.02), u, 0.06);
+  // ports: left USB-C, USB-A, HDMI · right DC, 3.5mm, USB-A
+  B(0.02, 0.07, 0.2, portMat, -BW / 2 - 0.005, 0.17, -0.55, u, 0.008);
+  B(0.02, 0.09, 0.26, portMat, -BW / 2 - 0.005, 0.17, -0.05, u, 0.008);
+  B(0.02, 0.08, 0.34, portMat, -BW / 2 - 0.005, 0.17, 0.5, u, 0.008);
+  B(0.02, 0.1, 0.1, portMat, BW / 2 + 0.005, 0.17, -0.6, u, 0.008);
+  C(0.045, 0.045, 0.03, portMat, BW / 2 + 0.005, 0.17, 0.1).rotation.z = Math.PI / 2;
+  B(0.02, 0.09, 0.26, portMat, BW / 2 + 0.005, 0.17, 0.62, u, 0.008);
+  for (let i = 0; i < 9; i++) B(0.16, 0.05, 0.02, portMat, -0.8 + i * 0.2, 0.2, -BD / 2 - 0.005, u, 0.008);
+  // amber pinstripe + power LED on the front edge
+  mesh(new THREE.BoxGeometry(1.1, 0.025, 0.012), amberDim, -0.9, 0.13, BD / 2 + 0.004, u).castShadow = false;
+  const pwr = mesh(new THREE.BoxGeometry(0.05, 0.05, 0.012), amber, 1.62, 0.17, BD / 2 + 0.004, u);
+  pwr.castShadow = false;
+
+  // PowerJet 130 in the rear bay, LCD facing up
+  const bank = new THREE.Group(); bank.position.set(1.02, 0.2, -0.8); u.add(bank);
+  B(1.5, 0.18, 0.78, new THREE.MeshStandardMaterial({ color: '#3d4145', roughness: 0.45, metalness: 0.5 }), 0, 0.09, 0, bank, 0.03);
+  const [lc, lx] = canvas(256, 128);
+  lx.fillStyle = '#0a0f0d'; lx.fillRect(0, 0, 256, 128);
+  lx.fillStyle = '#ffb000'; lx.font = '700 56px "IBM Plex Mono", monospace'; lx.textAlign = 'center'; lx.fillText('87%', 128, 62);
+  lx.fillStyle = '#8fd0a0'; lx.font = '20px "IBM Plex Mono", monospace'; lx.fillText('100W OUT · USB-C PD', 128, 100);
+  const lcd = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.31), new THREE.MeshBasicMaterial({ map: canvasTexture(lc), toneMapped: false }));
+  lcd.rotation.x = -Math.PI / 2; lcd.position.set(0, 0.201, 0); bank.add(lcd);
+
+  // speakers either side of the keyboard
+  for (const sd of [-1, 1]) {
+    C(0.14, 0.16, 0.09, portMat, sd * 1.52, BH + 0.03, 0.55);
+    C(0.07, 0.07, 0.11, caseDark, sd * 1.52, BH + 0.03, 0.55);
+    for (let i = 0; i < 4; i++) mesh(new THREE.BoxGeometry(0.2, 0.012, 0.028), portMat, sd * 1.52, BH + 0.045, 0.86 + i * 0.07, u).castShadow = false;
+  }
+
+  // K400 Plus slab
+  const kb = new THREE.Group(); kb.position.set(-0.18, BH + 0.03, 0.28); u.add(kb);
+  B(3.06, 0.09, 1.62, caseDark, 0, 0.045, 0, kb, 0.04);
+  B(3.06, 0.02, 1.62, deckPlate, 0, 0.1, 0, kb, 0.01);
+  const keyGeo = rbox(0.155, 0.045, 0.155, 0.02, 2);
+  const keys = new THREE.InstancedMesh(keyGeo, keyMat, 90);
+  keys.castShadow = true; keys.receiveShadow = true;
+  keys.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const dummy = new THREE.Object3D();
+  const keyPos = [];
+  let ki = 0;
+  const rows = [13, 13, 12, 11];
+  for (let r = 0; r < 4; r++) for (let c = 0; c < rows[r]; c++) keyPos.push([-1.28 + c * 0.185 + r * 0.05, -0.58 + r * 0.185, 1]);
+  [[-1.28, 0.16], [-1.06, 0.16], [-0.84, 0.16]].forEach(([x, z]) => keyPos.push([x, z, 1]));
+  keyPos.push([0.05, 0.16, 3.4]);
+  [[0.72, 0.16], [0.94, 0.16], [1.16, 0.16]].forEach(([x, z]) => keyPos.push([x, z, 1]));
+  const setKey = (i, down) => { const [x, z, sx] = keyPos[i]; dummy.position.set(x, 0.135 - (down ? 0.022 : 0), z); dummy.scale.set(sx, 1, 1); dummy.updateMatrix(); keys.setMatrixAt(i, dummy.matrix); };
+  keyPos.forEach((_, i) => setKey(i, false));
+  keys.count = keyPos.length;
+  kb.add(keys);
+  for (let i = 0; i < 10; i++) B(0.15, 0.03, 0.1, keyMat2, -1.24 + i * 0.185, 0.125, -0.74, kb, 0.01);
+  B(0.72, 0.015, 1.1, new THREE.MeshStandardMaterial({ color: '#242628', roughness: 0.4, metalness: 0.2 }), 1.06, 0.115, 0.12, kb, 0.01);
+  B(0.34, 0.016, 0.18, keyMat2, 0.88, 0.115, 0.75, kb, 0.008);
+  B(0.34, 0.016, 0.18, keyMat2, 1.24, 0.115, 0.75, kb, 0.008);
+  C(0.045, 0.045, 0.03, amberDim, -1.38, 0.12, -0.74, kb, 16);
+
+  // raised hinges
+  const HY = 0.56, HZ = -BD / 2 + 0.09;
+  for (const x of [-1.25, 1.25]) {
+    B(0.36, 0.26, 0.2, caseDark, x, 0.47, HZ, u, 0.04);
+    C(0.075, 0.075, 0.5, metal, x, HY, HZ).rotation.z = Math.PI / 2;
+  }
   // lid
-  const lid = new THREE.Group();
-  const LH = 0.2;
-  mesh(rbox(W, LH, 0.022, 0.012, 3), M.deckShell, 0, LH / 2, -0.011, lid);
-  mesh(rbox(0.19, 0.12, 0.004, 0.004), M.plasticBlack, -0.03, LH / 2 + 0.01, 0.001, lid);
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.172, 0.103), new THREE.MeshBasicMaterial({ toneMapped: false }));
-  screen.position.set(-0.03, LH / 2 + 0.01, 0.0035); lid.add(screen);
-  // screws
-  for (const [sx, sy] of [[-0.16, 0.02], [0.16, 0.02], [-0.16, LH - 0.02], [0.16, LH - 0.02]]) mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.003, 12), M.chrome, sx, sy, 0.0015, lid).rotation.x = Math.PI / 2;
-  // status LEDs + speaker grille on lid
-  const ledA = mesh(new THREE.SphereGeometry(0.0025, 8, 6), M.ledGreen, 0.12, LH - 0.04, 0.002, lid);
-  const ledB = mesh(new THREE.SphereGeometry(0.0025, 8, 6), M.ledWarm, 0.135, LH - 0.04, 0.002, lid);
-  ledB.userData.dynamic = true;
-  for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) mesh(new THREE.CylinderGeometry(0.0018, 0.0018, 0.002, 6), M.plasticBlack, 0.115 + i * 0.008, 0.05 + j * 0.008, 0.0005, lid).rotation.x = Math.PI / 2;
-  // antenna
-  const ant = new THREE.Group();
-  mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.012, 12), M.chrome, 0, 0, 0, ant);
-  mesh(new THREE.CylinderGeometry(0.0035, 0.002, 0.16, 10), M.plasticBlack, 0, 0.085, 0, ant);
-  ant.position.set(W / 2 + 0.006, LH - 0.03, -0.01); ant.rotation.z = -0.25;
-  lid.add(ant);
-  lid.position.set(0, Hb, -D / 2 + 0.01);
-  lid.rotation.x = -0.22; // opened a little past vertical
-  g.add(lid);
-  // ribbon cable visible at the hinge
-  mesh(new THREE.BoxGeometry(0.06, 0.002, 0.03), new THREE.MeshStandardMaterial({ color: '#8a8f99', roughness: 0.6 }), 0.1, Hb + 0.004, -D / 2 + 0.02, g).rotation.x = -0.6;
+  const lid = new THREE.Group(); lid.position.set(0, HY, HZ); u.add(lid);
+  const LH = 2.42, LW = 3.62, LT = 0.13;
+  B(LW, LH, LT, caseMat, 0, LH / 2, 0, lid, 0.06);
+  B(LW - 0.16, LH - 0.16, 0.02, caseDark, 0, LH / 2, LT / 2 + 0.005, lid, 0.02);
+  // lid-back badge
+  const [bc, bx] = canvas(1024, 680);
+  bx.fillStyle = '#3a3e42'; bx.fillRect(0, 0, 1024, 680);
+  bx.strokeStyle = 'rgba(255,176,0,0.85)'; bx.lineWidth = 6; bx.strokeRect(28, 28, 968, 624);
+  bx.fillStyle = '#ffb000'; bx.font = '800 92px Archivo, sans-serif'; bx.textAlign = 'center'; bx.fillText('FIELD DECK', 512, 300);
+  bx.fillStyle = '#e8e2d2'; bx.font = '700 92px Archivo, sans-serif'; bx.fillText('01', 512, 410);
+  bx.fillStyle = '#9aa0a4'; bx.font = '34px "IBM Plex Mono", monospace';
+  bx.fillText('PETG SHELL · PRINTED IN NAIROBI', 512, 500); bx.fillText('DESKMINI INSIDE · NO GRID REQUIRED', 512, 552);
+  const badge = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.73), new THREE.MeshStandardMaterial({ map: canvasTexture(bc), roughness: 0.55, metalness: 0.3 }));
+  badge.rotation.y = Math.PI; badge.position.set(0, LH / 2, -LT / 2 - 0.004); lid.add(badge);
+  // panel: glass over a 16:9 4K image
+  B(3.44, 1.99, 0.03, rubber, 0, LH / 2 - 0.03, LT / 2 - 0.012, lid, 0.01);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(3.34, 1.885), new THREE.MeshBasicMaterial({ toneMapped: false }));
+  screen.position.set(0, LH / 2 - 0.03, LT / 2 + 0.02); lid.add(screen);
+  const glass = new THREE.Mesh(new THREE.PlaneGeometry(3.34, 1.885), new THREE.MeshPhysicalMaterial({ color: '#000', transparent: true, opacity: 0.1, roughness: 0.06, clearcoat: 1, depthWrite: false }));
+  glass.position.set(0, LH / 2 - 0.03, LT / 2 + 0.024); lid.add(glass);
+  C(0.02, 0.02, 0.012, portMat, 0, LH - 0.09, LT / 2 + 0.012, lid, 12).rotation.x = Math.PI / 2;
+  // amber LED strip along the inside top edge
+  mesh(new THREE.BoxGeometry(2.9, 0.045, 0.03), amberDim, 0, LH - 0.055, LT / 2 + 0.03, lid).castShadow = false;
+  for (let i = 0; i < 12; i++) mesh(new THREE.BoxGeometry(0.07, 0.05, 0.034), amber, -1.32 + i * 0.24, LH - 0.055, LT / 2 + 0.03, lid).castShadow = false;
+  lid.rotation.x = -0.28; // open to ~106 degrees
 
   const pressed = new Map();
-  function pressRandom() {
-    const k = keyIndex[Math.floor(Math.random() * keyIndex.length)];
-    pressed.set(k, 0.09);
-  }
+  function pressRandom() { const i = Math.floor(Math.random() * (keyPos.length - 1)); pressed.set(i, 0.09); setKey(i, true); keys.instanceMatrix.needsUpdate = true; }
   function update(dt) {
-    for (const [k, t] of pressed) {
-      const [type, idx, x, z] = k;
-      const im = type === 'd' ? keys : type === 'l' ? keysLight : keysAccent;
+    if (!pressed.size) return;
+    for (const [i, t] of pressed) {
       const nt = t - dt;
-      dummy.position.set(x, Hb + 0.0085 - (nt > 0 ? 0.003 : 0), z); dummy.updateMatrix();
-      im.setMatrixAt(idx, dummy.matrix); im.instanceMatrix.needsUpdate = true;
-      if (nt <= 0) pressed.delete(k); else pressed.set(k, nt);
+      if (nt <= 0) { pressed.delete(i); setKey(i, false); } else pressed.set(i, nt);
     }
-    ledB.visible = Math.random() > 0.08;
+    keys.instanceMatrix.needsUpdate = true;
   }
-  return { group: g, lid, screen, keys, pressRandom, update, keyboardCenter: new THREE.Vector3(-0.035, Hb + 0.01, 0.03) };
+  // points the hand IK uses, in the deck's local (scaled) frame
+  const toLocal = (x, y, z) => new THREE.Vector3(x * S, y * S, z * S);
+  return {
+    group: g, lid, screen, keys, pressRandom, update,
+    keyboardCenter: toLocal(-0.18 - 0.2, BH + 0.03 + 0.16, 0.28 - 0.3),
+    touchpad: toLocal(-0.18 + 1.06, BH + 0.03 + 0.14, 0.28 + 0.15),
+    screenCenter: toLocal(0, HY + 1.2, HZ - 0.2),
+    width: BW * S,
+  };
 }
 
 function buildChair(M) {

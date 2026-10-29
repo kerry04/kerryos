@@ -45,6 +45,7 @@ renderer.shadowMap.autoUpdate = false; // refreshed at a lower rate in the loop
 renderer.setClearColor(0x000000, 0);
 renderer.domElement.id = 'gl';
 document.body.appendChild(renderer.domElement);
+{ const v = document.createElement('div'); v.id = 'vignette'; document.body.appendChild(v); }
 RectAreaLightUniformsLib.init();
 
 const scene = new THREE.Scene();
@@ -62,10 +63,13 @@ scene.add(room.group);
 const proxies = buildProxies(room.hotspots, scene);
 const mergeStats = mergeStatic(room.group);
 if (lowEnd) simplifyMaterials(room.group);
-// things that can sit between the camera and the SokoResult monitor
+// things that can sit between the camera and a live screen (monitor, TV)
 {
-  const zone = new THREE.Box3(new THREE.Vector3(-2.95, 0, -2.95), new THREE.Vector3(-0.25, 2.4, -0.9));
-  room.group.traverse((o) => { if (o.isMesh) { const b = new THREE.Box3().setFromObject(o); if (b.intersectsBox(zone)) o.layers.enable(2); } });
+  const zones = [
+    new THREE.Box3(new THREE.Vector3(-2.95, 0, -2.95), new THREE.Vector3(-0.25, 2.4, -0.9)),
+    new THREE.Box3(new THREE.Vector3(-3.42, 0.3, 0.1), new THREE.Vector3(-1.4, 2.2, 2.0)),
+  ];
+  room.group.traverse((o) => { if (o.isMesh) { const b = new THREE.Box3().setFromObject(o); if (zones.some((z) => b.intersectsBox(z))) o.layers.enable(2); } });
 }
 const sky = buildSky(WINDOW);
 scene.add(sky.group);

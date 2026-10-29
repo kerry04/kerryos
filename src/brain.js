@@ -77,6 +77,9 @@ export class Brain {
       if (k === 'rack') s -= 0.12;
       if (k === 'gaming') s += 0.08;
       if (k === 'dance') s -= 0.06;
+      // music on the TV: he'll want to move, and the TV is taken
+      if (this.music && k === 'dance') s += 0.45;
+      if (this.music && k === 'gaming') s = -2;
       // he won't start a shootaround while the ball is stuck somewhere he can't reach
       if (k === 'hoops' && this.ballLost && this.ball.state.pos.distanceTo(this.ballLost) < 0.2) s = -2;
       if ((k === 'dance' || k === 'hoops') && N.energy < 0.25) s -= 0.5;
@@ -182,7 +185,21 @@ export class Brain {
     this.start(k);
   }
 
-  timeUp() { return this.time > this.endAt || this.needs.energy < 0.05 && this.activity !== 'sleep'; }
+  timeUp() {
+    if (this.music && this.activity === 'gaming') return true; // someone put music on the TV
+    return this.time > this.endAt || this.needs.energy < 0.05 && this.activity !== 'sleep';
+  }
+
+  // a visitor put a track on (or turned it off)
+  setMusic(on) {
+    if (on === !!this.music) return;
+    this.music = on;
+    if (on && this.activity !== 'sleep') {
+      this.say(pick(['Oh, that’s a tune.', 'Turn it up.', 'Good pick.', 'Okay, okay. I see you.']), 3);
+      // the guitar can't compete; anything else he may or may not drop
+      if (this.activity !== 'dance' && (this.activity === 'guitar' || Math.random() < 0.6)) this.endAt = Math.min(this.endAt, this.time + rand(2, 7));
+    }
+  }
 
   // visitor clicked Kerry
   poke() {
@@ -424,7 +441,7 @@ export class Brain {
   *coding(instant) {
     const A = this.anchors.coding, P = this.pose, deck = this.props.deck;
     const kb = deck.group.localToWorld(deck.keyboardCenter.clone());
-    const ball = deck.group.localToWorld(new THREE.Vector3(0.135, 0.07, 0.03));
+    const ball = deck.group.localToWorld(deck.touchpad.clone());
     if (instant) {
       this.setRoot(A.seat.clone().setY(0), A.facing);
       this.kerry.root.updateMatrixWorld(true);
@@ -437,7 +454,7 @@ export class Brain {
     }
     this.handsBusy = true;
     let mouseT = 0, lookT = 0, lookTarget = 'deck';
-    const deckScreen = deck.group.localToWorld(new THREE.Vector3(-0.03, 0.17, -0.08));
+    const deckScreen = deck.group.localToWorld(deck.screenCenter.clone());
     const mon = this.props.sokoScreen.getWorldPosition(new THREE.Vector3());
     const mon2 = this.props.stockScreen.getWorldPosition(new THREE.Vector3());
     let w = 0;
@@ -452,7 +469,7 @@ export class Brain {
       const left = new THREE.Vector3(1, 0, 0).transformDirection(this.kerry.root.matrixWorld);
       const tap = (s) => Math.sin(this.time * (17 + s * 3)) * 0.006;
       P.hands.l = kb.clone().addScaledVector(left, 0.07).add(new THREE.Vector3(0, 0.02 + Math.max(0, tap(1)), 0));
-      P.hands.r = usingBall ? ball.clone().add(new THREE.Vector3(0, 0.025, 0)) : kb.clone().addScaledVector(left, -0.06).add(new THREE.Vector3(0, 0.02 + Math.max(0, tap(2)), 0));
+      P.hands.r = usingBall ? ball.clone().add(new THREE.Vector3(Math.sin(this.time * 2.1) * 0.012, 0.022, Math.cos(this.time * 1.7) * 0.01)) : kb.clone().addScaledVector(left, -0.06).add(new THREE.Vector3(0, 0.02 + Math.max(0, tap(2)), 0));
       P.hands.wl = P.hands.wr = w;
       P.hands.poleL = this.localToWorld(0.5, 0.3, -0.4); P.hands.poleR = this.localToWorld(-0.5, 0.3, -0.4);
       lookT -= dt;
@@ -554,22 +571,47 @@ export class Brain {
 
   *sleep(instant) {
     const A = this.anchors.sleep, P = this.pose, bed = this.props.bed;
-    const lieRoot = new THREE.Vector3(2.62, 0.66, -0.98);
-    const lieQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0, 'YXZ'));
+    // on his left side, facing into the room, head on the near pillow, knees drawn up
+    const lieRoot = new THREE.Vector3(2.24, bed.top + 0.17, -0.98);
+    const lieQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+      new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(1, 0, 0)));
+    const K = this.kerry;
+    // the duvet follows his real limbs
+    const bodySegs = () => {
+      const w = (n) => K.wp(n);
+      const seg = (n1, n2, r, lift = 0) => {
+        const p1 = w(n1), p2 = w(n2);
+        return { a: [p1.x, p1.z, p1.y + r + lift], b: [p2.x, p2.z, p2.y + r + lift], r };
+      };
+      const out = [seg('spine2', 'hips', 0.19, 0.03), seg('hips', 'leftleg', 0.13, 0.045), seg('hips', 'rightleg', 0.13, 0.045), seg('leftleg', 'leftfoot', 0.095, 0.04), seg('rightleg', 'rightfoot', 0.095, 0.04)];
+      if (K.bones.rightarm) out.push(seg('rightarm', 'rightforearm', 0.08, 0.04), seg('rightforearm', 'righthand', 0.07, 0.03));
+      return out;
+    };
     const setDuvet = (t) => {
+      if (t > 0 && K.ok) bed.setBody(bodySegs(), -2.24);
       bed.setCover(t);
-      // the throw gets folded away while he sleeps
-      bed.throwM.visible = t < 0.25;
+      bed.throwM.visible = t < 0.25; // the throw gets folded away while he sleeps
+    };
+    const lieLimbs = (w) => {
+      P.feet.l = this.localToWorld(0.1, 0.32, 0.28); P.feet.r = this.localToWorld(-0.03, 0.4, 0.44); P.feet.w = w;
+      // bottom arm tucked under the pillow, top arm resting in front of his chest
+      P.hands.l = this.localToWorld(0.1, 1.5, 0.2); P.hands.r = this.localToWorld(0.12, 1.08, 0.36);
+      P.hands.poleL = this.localToWorld(0.3, 1.3, 0.6); P.hands.poleR = this.localToWorld(-0.2, 1.2, 0.7);
+      P.hands.wl = P.hands.wr = w;
+      P.lean = 0.28 * w;
     };
     if (instant) {
-      this.kerry.root.position.copy(lieRoot);
-      this.kerry.root.quaternion.copy(lieQ);
+      K.root.position.copy(lieRoot);
+      K.root.quaternion.copy(lieQ);
+      K.root.updateMatrixWorld(true);
       this.heading = 0;
-      P.lie = 1; this.lying = true; setDuvet(1);
+      P.lie = 1; this.lying = true; lieLimbs(1);
       this.ui.lamps.bed = 0;
+      yield; // let the pose settle for a frame before draping the duvet
+      setDuvet(1);
     } else {
       yield* this.walkTo(A.approach.clone(), { facing: Math.PI / 2 });
-      this.audio.sfx.yawn(this.kerry.wp('head'));
+      this.audio.sfx.yawn(K.wp('head'));
       this.say(pick(['*yawn*', 'Lights out.', 'Okay. Bed.']), 2.5);
       // stretch before lying down
       yield* this.tween(1.0, (t) => {
@@ -579,49 +621,54 @@ export class Brain {
       });
       P.hands.wl = P.hands.wr = 0; P.lean = 0;
       this.ui.lamps.bed = 0;
-      const q0 = this.kerry.root.quaternion.clone(), p0 = this.kerry.root.position.clone();
-      const mid = new THREE.Vector3(2.15, 0.62, -1.4);
-      yield* this.tween(1.8, (t) => {
+      // sit on the edge, then swing the legs up and roll onto his side
+      const q0 = K.root.quaternion.clone(), p0 = K.root.position.clone();
+      const mid = new THREE.Vector3(2.12, 0.5, -1.25);
+      yield* this.tween(1.9, (t) => {
         const a = smooth(t);
-        const p = t < 0.5 ? p0.clone().lerp(mid, a * 2) : mid.clone().lerp(lieRoot, (a - 0.5) * 2);
-        p.y = lerp(p0.y, lieRoot.y, smooth(clamp(t * 1.4, 0, 1))) + Math.sin(t * Math.PI) * 0.12;
-        this.kerry.root.position.copy(p);
-        this.kerry.root.quaternion.copy(q0).slerp(lieQ, smooth(clamp((t - 0.15) / 0.75, 0, 1)));
-        P.lie = t; setDuvet(clamp((t - 0.6) / 0.4, 0, 1));
+        const p = t < 0.45 ? p0.clone().lerp(mid, smooth(t / 0.45)) : mid.clone().lerp(lieRoot, smooth((t - 0.45) / 0.55));
+        p.y = lerp(p0.y, lieRoot.y, smooth(clamp(t * 1.3, 0, 1))) + Math.sin(t * Math.PI) * 0.1;
+        K.root.position.copy(p);
+        K.root.quaternion.copy(q0).slerp(lieQ, smooth(clamp((t - 0.2) / 0.7, 0, 1)));
+        P.lie = a; lieLimbs(smooth(clamp((t - 0.35) / 0.6, 0, 1)));
+        setDuvet(clamp((t - 0.7) / 0.3, 0, 1));
       });
-      this.lying = true; P.lie = 1;
+      this.lying = true; P.lie = 1; lieLimbs(1); setDuvet(1);
     }
-    this.kerry.play('idle', 0.6, 0.35);
-    let zt = 0;
+    K.play('idle', 0.6, 0.35);
+    let zt = 0, drape = 0, slept = 0;
     while (!this.timeUp() || this.needs.energy < 0.55) {
       const dt = yield;
-      this.kerry.current && (this.kerry.current.timeScale = 0.3);
+      K.current && (K.current.timeScale = 0.3);
+      lieLimbs(1);
       P.lookW = 0;
-      zt += dt;
-      if (zt > 2.4) { zt = 0; this.ui.zzz?.(this.kerry.wp('head')); }
+      zt += dt; drape += dt; slept += dt;
+      if (drape > (slept < 4 ? 0.2 : 1.5)) { drape = 0; setDuvet(1); }
+      if (zt > 2.4) { zt = 0; this.ui.zzz?.(K.wp('head')); }
       if (this.time > this.endAt + 40) break;
     }
-    // wake up
+    // wake up: throw the duvet back, sit up on the edge, stand
     this.ui.lamps.bed = null;
     this.say(pick(['Okay. I’m up.', 'How long was I out?', 'Right. Back to it.']), 3);
-    const q0 = this.kerry.root.quaternion.clone(), p0 = this.kerry.root.position.clone();
-    const upright = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI / 2, 0));
+    const q0 = K.root.quaternion.clone(), p0 = K.root.position.clone();
+    const upright = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0));
     const stand = A.approach.clone();
-    yield* this.tween(1.7, (t) => {
+    yield* this.tween(1.8, (t) => {
       const a = smooth(t);
-      setDuvet(1 - clamp(t * 1.6, 0, 1));
-      const mid = new THREE.Vector3(2.0, 0.62, -1.45);
-      const p = t < 0.5 ? p0.clone().lerp(mid, a * 2) : mid.clone().lerp(stand, (a - 0.5) * 2);
-      p.y = lerp(p0.y, 0, smooth(clamp((t - 0.3) / 0.7, 0, 1))) + Math.sin(t * Math.PI) * 0.1;
-      this.kerry.root.position.copy(p);
-      this.kerry.root.quaternion.copy(q0).slerp(upright, smooth(clamp(t / 0.8, 0, 1)));
-      P.lie = 1 - t;
+      setDuvet(1 - clamp(t * 1.8, 0, 1));
+      const mid = new THREE.Vector3(2.08, 0.5, -1.3);
+      const p = t < 0.5 ? p0.clone().lerp(mid, smooth(t * 2)) : mid.clone().lerp(stand, smooth((t - 0.5) * 2));
+      p.y = lerp(p0.y, 0, smooth(clamp((t - 0.3) / 0.7, 0, 1))) + Math.sin(t * Math.PI) * 0.08;
+      K.root.position.copy(p);
+      K.root.quaternion.copy(q0).slerp(upright, smooth(clamp(t / 0.8, 0, 1)));
+      P.lie = 1 - a; lieLimbs(1 - smooth(clamp(t / 0.6, 0, 1)));
     });
-    this.kerry.root.quaternion.copy(upright);
-    this.heading = Math.PI / 2;
-    this.kerry.root.rotation.set(0, this.heading, 0);
-    this.kerry.root.position.y = 0;
+    this.heading = -Math.PI / 2;
+    K.root.quaternion.identity();
+    K.root.rotation.set(0, this.heading, 0);
+    K.root.position.y = 0;
     P.lie = 0; this.lying = false;
+    P.feet.w = 0; P.feet.l = P.feet.r = null; P.hands.wl = P.hands.wr = 0; P.lean = 0;
     setDuvet(0);
     this.needs.energy = Math.max(this.needs.energy, 0.75);
   }
@@ -633,14 +680,18 @@ export class Brain {
     else yield* this.walkTo(A.pos.clone(), { facing: camFacing() });
     const tv = this.screens.tv;
     tv.mode = 'viz';
-    let beatPulse = 0;
-    this.audio.startGroove(this.props.soundbar.pos, (s) => { if (s % 4 === 0) beatPulse = 1; });
+    let beatPulse = 0, groove = false;
+    const grooveOn = () => { if (groove) return; groove = true; this.audio.startGroove(this.props.soundbar.pos, (s) => { if (s % 4 === 0) beatPulse = 1; }); };
+    const grooveOff = () => { if (!groove) return; groove = false; this.audio.stopGroove(); };
+    if (!this.music) grooveOn();
     this.kerry.play('dance', 0.5, 1);
     let t = 0;
     while (!this.timeUp()) {
       const dt = yield;
       t += dt;
-      if (!this.audio.enabled) { if (Math.floor(t * this.audio.BPM / 60) !== Math.floor((t - dt) * this.audio.BPM / 60)) beatPulse = 1; }
+      // his own groove on the soundbar, or the visitor's track on the TV
+      if (this.music) grooveOff(); else grooveOn();
+      if (!this.audio.enabled || this.music) { if (Math.floor(t * this.audio.BPM / 60) !== Math.floor((t - dt) * this.audio.BPM / 60)) beatPulse = 1; }
       beatPulse = Math.max(0, beatPulse - dt * 5);
       this.beat = beatPulse;
       tv.energy = 0.4 + beatPulse * 0.6;
@@ -651,7 +702,7 @@ export class Brain {
       else P.lookW = damp(P.lookW, 0, 0.5, dt);
     }
     this.beat = 0;
-    this.audio.stopGroove();
+    grooveOff();
     tv.mode = 'off';
     this.kerry.play('idle', 0.6);
     yield* this.wait(0.6);
@@ -753,57 +804,97 @@ export class Brain {
         P.look = HOOP.rim.clone(); P.lookW = 0.4;
         res = walk.next(dt);
       }
-      // settle the ball into both hands at the chest
+      // pick the ball up off the last bounce into both hands at the chest
       this.dribbling = false;
-      this.ballLocal = new THREE.Vector3(-0.03, 1.08, 0.3);
+      const pickFrom = this.kerry.root.worldToLocal(B.state.pos.clone());
+      this.ballLocal = pickFrom.clone();
       B.hold(() => this.handBallPos());
-      yield* this.turnTo(faceHoop(), 7);
-      // gather -> rise -> release -> follow-through
+      const chest = new THREE.Vector3(-0.03, 1.06, 0.3);
       const left = () => new THREE.Vector3(1, 0, 0).transformDirection(this.kerry.root.matrixWorld);
       const fwdV = () => new THREE.Vector3(0, 0, 1).transformDirection(this.kerry.root.matrixWorld);
-      const handsOnBall = () => {
-        const b = this.handBallPos();
-        P.hands.l = b.clone().addScaledVector(left(), B.R + 0.012).add(new THREE.Vector3(0, 0.01, 0));
-        P.hands.r = b.clone().addScaledVector(fwdV(), -B.R - 0.015).addScaledVector(left(), -0.02).add(new THREE.Vector3(0, -0.04, 0));
-        P.hands.wl = P.hands.wr = 1;
-        P.hands.poleL = this.localToWorld(0.6, 0.3, -0.2); P.hands.poleR = this.localToWorld(-0.5, 0.1, -0.3);
+      const upV = new THREE.Vector3(0, 1, 0);
+      // shooting hand under and behind the ball, wrist cocked; guide hand on the side
+      // cock: 1 = loaded (fingers back), 0 = straight up, -1 = follow-through (gooseneck)
+      const handsOnBall = (cock = 1, guide = 1) => {
+        const b = this.handBallPos(), f = fwdV(), l = left();
+        P.hands.r = b.clone().addScaledVector(upV, -(B.R + 0.03)).addScaledVector(f, 0.035 * cock - 0.02).addScaledVector(l, 0.015);
+        P.hands.handDirR = f.clone().multiplyScalar(-0.9 * cock).addScaledVector(upV, 0.45);
+        P.hands.l = b.clone().addScaledVector(l, B.R + 0.045).addScaledVector(upV, -0.02).addScaledVector(f, -0.01);
+        P.hands.handDirL = upV.clone().addScaledVector(f, 0.25);
+        P.hands.wr = 1; P.hands.wl = guide;
+        // shooting elbow under the ball and pointing at the rim; guide elbow out
+        P.hands.poleR = this.localToWorld(-0.12, 0.9, 0.9); P.hands.poleL = this.localToWorld(0.8, 1.1, 0.1);
       };
+      yield* this.tween(0.26, (t) => { this.ballLocal.lerpVectors(pickFrom, chest, t); handsOnBall(1, t); });
+      yield* this.turnTo(faceHoop(), 7);
       P.look = HOOP.rim.clone(); P.lookW = 0.9;
-      yield* this.tween(0.45, (t) => { P.crouch = 0.13 * t; this.ballLocal.set(-0.03, 1.08 - 0.12 * t, 0.3); handsOnBall(); });
       const fatigue = 1 - this.needs.energy;
-      const baseY = 0;
-      yield* this.tween(0.32, (t) => {
-        P.crouch = 0.13 * (1 - t);
-        this.kerry.root.position.y = baseY + Math.sin(t * Math.PI * 0.5) * 0.14;
-        this.ballLocal.set(-0.06, lerp(0.96, 2.02, t), lerp(0.3, 0.18, t));
-        handsOnBall();
+      const lin = function* (dur, fn) { let t = 0; while (t < dur) { const dt = yield; t = Math.min(dur, t + dt); fn(t / dur, dt); } };
+      // 1) dip: knees bend, ball drops to the waist
+      const dipBall = new THREE.Vector3(-0.05, 0.94, 0.3);
+      yield* this.tween(0.22, (t) => { P.crouch = 0.15 * t; P.lean = 0.1 * t; this.ballLocal.lerpVectors(chest, dipBall, t); handsOnBall(); });
+      // 2) rise: legs drive, ball comes up the midline to the set point above the forehead
+      const setPt = new THREE.Vector3(-0.08, 1.8, 0.13), relPt = new THREE.Vector3(-0.08, 2.02, 0.27);
+      yield* lin(0.24, (u) => {
+        const e = smooth(u);
+        P.crouch = 0.15 * (1 - e); P.lean = 0.1 * (1 - e) - 0.02 * e;
+        // stays in front of the face until it is above the forehead
+        this.ballLocal.set(lerp(dipBall.x, setPt.x, e), lerp(dipBall.y, setPt.y, e), lerp(dipBall.z + 0.02, setPt.z, smooth(clamp((e - 0.55) / 0.45, 0, 1))));
+        this.kerry.root.position.y = 0.03 * e;
+        handsOnBall(1);
       });
-      // release
-      const from = this.handBallPos();
-      const r = (a) => rand(-a, a);
-      const vel = solveShot(from, this.ballTarget(), 52 + r(3.5 + fatigue * 3));
-      if (vel) {
-        vel.multiplyScalar(1 + r(0.034 * (1 + fatigue)));
-        vel.x += r(0.1 * (1 + fatigue)); vel.z += r(0.1 * (1 + fatigue));
-        const spinAxis = new THREE.Vector3(vel.z, 0, -vel.x).normalize();
-        B.release(vel, spinAxis.multiplyScalar(-14)); // backspin
-      } else B.release(new THREE.Vector3(0, 2, 0));
-      this.carryBall = false; this.ballLocal = null;
-      shots++; this.shots++;
-      const shotId = B.state.shotId;
-      // follow-through, hold the pose, watch the ball
-      yield* this.tween(0.35, (t) => {
-        this.kerry.root.position.y = Math.max(0, 0.14 * Math.cos(t * Math.PI * 0.5));
-        P.hands.r = this.localToWorld(-0.08, 2.0, 0.42); P.hands.l = this.localToWorld(0.16, 1.9, 0.3);
-        P.hands.wl = 1 - t * 0.6; P.hands.wr = 1;
-        P.handDirR = null;
+      // 3) jump: release just before the top
+      const AIR = 0.5, JUMP = 0.17, REL = 0.42;
+      const yAt = (u) => 0.03 + JUMP * 4 * u * (1 - u) - 0.03 * u;
+      let released = false, shotId = null, vel = null;
+      yield* lin(AIR, (u) => {
+        this.kerry.root.position.y = yAt(u);
+        P.crouch = 0.035 * Math.sin(u * Math.PI); // slight knee tuck in the air
+        if (!released) {
+          const k = Math.min(1, u / REL), e = k * k; // the arm accelerates into the release
+          this.ballLocal.lerpVectors(setPt, relPt, e);
+          handsOnBall(1 - 1.0 * e, 1 - e * 0.15);
+          if (u >= REL) {
+            released = true;
+            const from = this.handBallPos();
+            const r = (a) => rand(-a, a);
+            vel = solveShot(from, this.ballTarget(), 52 + r(3.5 + fatigue * 3));
+            if (vel) {
+              vel.multiplyScalar(1 + r(0.034 * (1 + fatigue)));
+              vel.x += r(0.1 * (1 + fatigue)); vel.z += r(0.1 * (1 + fatigue));
+              const spinAxis = new THREE.Vector3(vel.z, 0, -vel.x).normalize();
+              B.release(vel, spinAxis.multiplyScalar(-14)); // backspin off the fingertips
+            } else B.release(new THREE.Vector3(0, 2, 0));
+            this.carryBall = false; this.ballLocal = null;
+            shots++; this.shots++;
+            shotId = B.state.shotId;
+          }
+        }
+        if (released) {
+          // follow-through: arm stays extended, wrist snaps down (the gooseneck)
+          const f = fwdV(), k = Math.min(1, (u - REL) / 0.18);
+          P.hands.r = this.localToWorld(-0.08, 2.0 + 0.04 * k, 0.33 + 0.04 * k);
+          P.hands.handDirR = f.clone().multiplyScalar(0.55 + 0.3 * k).addScaledVector(upV, 0.8 - 1.6 * k);
+          // guide hand comes off the ball, open, to the side
+          P.hands.l = this.localToWorld(0.2, 1.93, 0.24); P.hands.handDirL = upV.clone();
+          P.hands.wl = 1; P.hands.wr = 1;
+        }
       });
+      // 4) land soft, hold the follow-through
       this.kerry.root.position.y = 0;
+      yield* this.tween(0.32, (t) => {
+        P.crouch = 0.1 * Math.sin(t * Math.PI); P.lean = 0.06 * Math.sin(t * Math.PI);
+        P.hands.r = this.localToWorld(-0.08, 2.03, 0.37); P.hands.l = this.localToWorld(0.22, 1.85 - 0.25 * t, 0.24);
+        P.hands.wl = 1 - t * 0.7; P.hands.wr = 1;
+      });
+      P.crouch = 0; P.lean = 0;
+      P.hands.handDirL = null;
       let watched = 0, made = false;
       while (watched < 1.6) {
         const dt = yield; watched += dt;
         P.look = B.state.pos.clone(); P.lookW = 1;
-        P.hands.wr = Math.max(0, 1 - watched * 1.2); P.hands.wl = 0;
+        P.hands.wr = Math.max(0, 1 - Math.max(0, watched - 0.25) * 1.4); P.hands.wl = 0;
+        if (P.hands.wr <= 0) P.hands.handDirR = null;
         if (B.state.scoredShot === shotId) made = true;
       }
       if (made) {
@@ -816,7 +907,7 @@ export class Brain {
         yield* this.wait(0.4);
       }
       this.detail = `${this.makes}/${this.shots}`;
-      P.hands.wr = P.hands.wl = 0;
+      P.hands.wr = P.hands.wl = 0; P.hands.handDirR = P.hands.handDirL = null;
     }
     this.handsBusy = false;
     if (this.carryBall) {
