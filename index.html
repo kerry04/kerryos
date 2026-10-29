@@ -81,6 +81,9 @@
   body.using-soko #exit-soko { display: block; }
   body.using-soko .hud, body.using-soko #bubble { opacity: 0; pointer-events: none; }
 
+  #caption { position: fixed; z-index: 6; left: 50%; bottom: calc(56px + env(safe-area-inset-bottom)); transform: translate(-50%, 8px); width: min(640px, calc(100vw - 32px)); padding: 12px 16px; background: rgba(14, 14, 13, 0.9); border: 1px solid var(--line); border-radius: 8px; font-size: 13.5px; line-height: 1.55; color: #e6e1d6; text-align: center; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; }
+  #caption.show { opacity: 1; transform: translate(-50%, 0); }
+  body.using-soko #caption { opacity: 0; }
   .hint { position: fixed; z-index: 3; bottom: calc(18px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); font-size: 11.5px; color: var(--muted); letter-spacing: .02em; text-align: center; transition: opacity 1s; pointer-events: none; white-space: nowrap; }
   body.hint-gone .hint { opacity: 0; }
 
@@ -103,7 +106,8 @@
     .tr .btn { padding: 7px 10px; font-size: 11px; }
     .tr #home-btn { display: none; }
     #status { font-size: 15px; }
-    #panel { top: auto; bottom: calc(12px + env(safe-area-inset-bottom)); right: 12px; left: 12px; width: auto; max-height: 52%; }
+    #panel { top: auto; bottom: calc(12px + env(safe-area-inset-bottom)); right: 12px; left: 12px; width: auto; max-height: 40%; }
+    #caption { top: calc(150px + env(safe-area-inset-top)); bottom: auto; font-size: 13px; }
     .hint { white-space: normal; width: 86vw; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
@@ -159,6 +163,7 @@
     <div class="p-links"></div>
   </aside>
   <button class="btn" id="exit-soko">Back to the room</button>
+  <div id="caption" role="status" aria-live="polite"></div>
   <div class="hint">Drag to look around · click anything to learn about it · drag the ball to throw it</div>
 
   <noscript><p style="padding:24px">Kerry's Room needs JavaScript and WebGL.</p></noscript>

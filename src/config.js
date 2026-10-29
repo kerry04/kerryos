@@ -169,3 +169,23 @@ export const SPOTS = {
 };
 
 export const TOUR = ['intro', 'kerry', 'soko', 'deck', 'rack', 'board', 'window', 'poster', 'tv', 'shelf', 'guitar', 'hoop', 'jersey', 'bed', 'outro'];
+
+// Spoken by the browser's speech engine (and shown as captions), written for
+// this room so the narration always matches what's on screen.
+export const TOUR_LINES = {
+  intro: "Welcome to Kerry's room in Nairobi. I'm Jarvis, his assistant. Kerry is in here somewhere, doing whatever he feels like. Nobody controls him, not even me. Let me show you around.",
+  kerry: (status) => `That's Kerry. Right now he's ${status}. He decides what to do next on his own, based on how tired, bored or restless he is, and what time it is here.`,
+  soko: "On the big monitor is SokoResult, Kerry's prediction market, running live. It's play money. You make calls on politics, sport and the economy, and see how you do against Soko AI.",
+  deck: "The cyberdeck is his portable Linux terminal. He uses it to run me. I read, draft and prepare things on my own, but anything that sends, spends or books waits for his one-tap approval.",
+  rack: "This rack is the KerryOS host. It boots a real, disposable Linux desktop in your browser, one visitor at a time, with outbound traffic locked to an allowlist.",
+  board: "The whiteboard has the pricing rule behind every SokoResult market, and what's shipping next. When he's in a building mood, he thinks here before he types.",
+  window: "Out the window is Nairobi. The sky follows the real time here, so come back at night and the city lights will be on.",
+  poster: "The poster is for the next big game he's waiting on.",
+  tv: "This is the PS5 corner. When he's playing, the match on the TV is live, and he reacts to every goal.",
+  shelf: "On the shelf, the mini PC is where the Virtual Web PC experiment started: a full computer streamed into a browser tab. That project led to KerryOS.",
+  guitar: "When he picks up the guitar, he fingerpicks House of the Rising Sun. Every note is synthesized right here in your browser.",
+  hoop: "The hoop has real ball physics: spin, the rim, the backboard, and a net that gives. You can throw the ball yourself. Just drag it and let go.",
+  jersey: "Above the bed, a sky blue matchday shirt. Kerry is a Manchester City fan.",
+  bed: "And the bed. He sleeps when his energy runs out, and more readily late at night.",
+  outro: "That's the room. Click anything to look closer, or just watch for a while and see what Kerry gets up to.",
+};

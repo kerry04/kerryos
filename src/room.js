@@ -284,6 +284,7 @@ export function buildRoom(manager) {
     lamp.position.set(-0.98, top, -2.82);
     lamp.rotation.y = -1.1;
     group.add(lamp);
+    bulb.userData.dynamic = true;
     props.deskLamp = { group: lamp, bulb };
 
     // mug
@@ -441,6 +442,7 @@ export function buildRoom(manager) {
     // throw blanket lying across the foot of the duvet
     const throwM = mesh(rbox(bw + 0.06, 0.022, 0.4, 0.01, 3), M.knit, cx, mTop + 0.075, z1 - 0.3, g);
     group.add(g);
+    duvet.userData.dynamic = true; throwM.userData.dynamic = true;
     props.bed = { duvet, setCover, mattress, throwM, throwY: throwM.position.y };
     hot('bed', mattress); hot('bed', duvet);
     addCollider([x0, 0, minZ], [maxX, 0.6, z1 + 0.02], { rest: 0.25, soft: true, rolloff: [-1, 0, 0.35] });
@@ -502,6 +504,7 @@ export function buildRoom(manager) {
     guitar.group.rotation.set(-0.15, 0.6, 0);
     group.add(guitar.group);
     props.guitar = guitar;
+    guitar.group.userData.dynamic = true;
     props.guitarRest = { pos: guitar.group.position.clone(), rot: guitar.group.rotation.clone() };
     hot('guitar', guitar.body);
     addCollider([1.25, 0, -0.6], [1.6, 1.0, -0.22], { rest: 0.3, nav: true });
@@ -546,6 +549,7 @@ export function buildRoom(manager) {
     cap.rotation.z = -Math.PI / 2;
     sub.position.set(minX + 0.2, 0, cz + len / 2 + 0.3);
     g.add(sub);
+    cone.userData.dynamic = cap.userData.dynamic = true;
     props.subwoofer = { cone, cap, coneX: cone.position.x, capX: cap.position.x };
     addCollider([minX, 0, cz + len / 2 + 0.14], [minX + 0.36, 0.36, cz + len / 2 + 0.46], { rest: 0.5 });
 
@@ -563,6 +567,7 @@ export function buildRoom(manager) {
     mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.01, 24), M.plasticBlack, 0, 0.005, 0, ps);
     ps.position.set(minX + 0.24, h, cz + 0.62);
     g.add(ps);
+    psLed.userData.dynamic = true;
     props.consoleLed = psLed;
 
     // controller (rests on the credenza until Kerry picks it up)
@@ -571,6 +576,7 @@ export function buildRoom(manager) {
     pad.rotation.y = 1.9;
     g.add(pad);
     props.controller = pad;
+    pad.userData.dynamic = true;
     props.controllerRest = { pos: pad.position.clone(), rot: pad.rotation.clone() };
 
     // shelf above the TV
@@ -774,6 +780,7 @@ function buildCyberdeck(M) {
   // status LEDs + speaker grille on lid
   const ledA = mesh(new THREE.SphereGeometry(0.0025, 8, 6), M.ledGreen, 0.12, LH - 0.04, 0.002, lid);
   const ledB = mesh(new THREE.SphereGeometry(0.0025, 8, 6), M.ledWarm, 0.135, LH - 0.04, 0.002, lid);
+  ledB.userData.dynamic = true;
   for (let i = 0; i < 5; i++) for (let j = 0; j < 4; j++) mesh(new THREE.CylinderGeometry(0.0018, 0.0018, 0.002, 6), M.plasticBlack, 0.115 + i * 0.008, 0.05 + j * 0.008, 0.0005, lid).rotation.x = Math.PI / 2;
   // antenna
   const ant = new THREE.Group();

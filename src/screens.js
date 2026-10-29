@@ -298,8 +298,9 @@ export function createOled(mesh) {
 
 // ------------------------------------------------------------------ whiteboard (handwritten, revealed as Kerry writes)
 export function createWhiteboard(mesh) {
-  const W = 1500, H = 1000;
-  const [c, x] = canvas(W, H);
+  // drawn in a 1500x1000 layout, stored at 1024 wide to keep texture uploads cheap
+  const W = 1500, H = 1000, S = 1024 / 1500;
+  const [c, x] = canvas(Math.round(W * S), Math.round(H * S));
   const tex = canvasTexture(c, { aniso: 8 });
   mesh.material.map = tex; mesh.material.needsUpdate = true;
   const hand = '"Caveat", "Segoe Print", "Bradley Hand", cursive';
@@ -344,6 +345,7 @@ export function createWhiteboard(mesh) {
     x.restore();
   }
   function render() {
+    x.setTransform(S, 0, 0, S, 0, 0);
     x.fillStyle = '#fbfbf9'; x.fillRect(0, 0, W, H);
     // faint ghosting of erased marker
     x.fillStyle = 'rgba(120,130,140,0.05)';
@@ -372,7 +374,7 @@ export function createWhiteboard(mesh) {
       let u, v;
       if (type === 'text') { const [, px, py] = a; u = (px / W) + (end[0] - px / W) * f; v = (py - 20) / H; }
       else { u = 0.06 + f * 0.4; v = 0.62 - f * 0.22; }
-      if (Math.floor(before * 20) !== Math.floor(progress * 20)) render();
+      if (Math.floor(before * 8) !== Math.floor(progress * 8)) render();
       return { u, v };
     },
     done() { return progress >= items.length; },

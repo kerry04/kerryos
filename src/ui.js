@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
-import { SPOTS, TOUR, LINKS } from './config.js';
+import { SPOTS, TOUR, TOUR_LINES, LINKS } from './config.js';
 import { clamp, easeInOut, nairobiTime, canvas, canvasTexture } from './util.js';
 import { ROOM } from './room.js';
 
@@ -23,7 +23,7 @@ const VIEWS = {
   bed: [[1.2, 2.1, 1.0], [2.6, 0.6, -1.8]],
 };
 
-export function createUI({ renderer, camera, scene, room, kerry, ball, audio, screens }) {
+export function createUI({ renderer, camera, scene, room, kerry, ball, audio, screens, proxies = [] }) {
   const $ = (s) => document.querySelector(s);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true; controls.dampingFactor = 0.08;
@@ -138,9 +138,12 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
     if (!inView) return;
     renderer.autoClear = false;
     renderer.clearDepth();
+    // depth of whatever could stand in front of the monitor (layer 2 only)
     scene.overrideMaterial = depthOnly;
     const bg = scene.background; scene.background = null;
+    camera.layers.set(2);
     renderer.render(scene, camera);
+    camera.layers.set(0);
     scene.background = bg;
     scene.overrideMaterial = null;
     hole.matrix.copy(sokoMesh.matrixWorld);
@@ -153,16 +156,30 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
   // --------------------------------------------------------- picking
   const ray = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
-  const pickables = [];
-  for (const [id, objs] of Object.entries(room.hotspots)) objs.forEach((o) => { o.traverse((c) => { if (c.isMesh) { c.userData.hotspot = id; pickables.push(c); } }); });
-  if (kerry) kerry.model.traverse((c) => { if (c.isMesh) { c.userData.hotspot = 'kerry'; pickables.push(c); } });
+  // invisible boxes stand in for objects, so picking stays cheap
+  const pickables = [...proxies];
+  const kerryProxy = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 1, 10), new THREE.MeshBasicMaterial({ visible: false }));
+  kerryProxy.userData.hotspot = 'kerry';
+  if (kerry) { scene.add(kerryProxy); pickables.push(kerryProxy); }
   pickables.push(ball.mesh);
+  function syncProxies() {
+    for (const p of proxies) if (p.userData.follow) p.userData.follow.getWorldPosition(p.position).add(p.userData.offset);
+    if (kerry) {
+      const a = kerry.capsule.a, b = kerry.capsule.b;
+      kerryProxy.position.lerpVectors(a, b, 0.5);
+      const len = Math.max(0.4, a.distanceTo(b) + 0.5);
+      kerryProxy.scale.set(1, len, 1);
+      kerryProxy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+      kerryProxy.updateMatrixWorld();
+    }
+  }
   const tip = $('#tip');
   let hoverId = null, lastMove = 0;
   function pick(ev) {
     const r = renderer.domElement.getBoundingClientRect();
     pointer.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
     ray.setFromCamera(pointer, camera);
+    syncProxies();
     const hits = ray.intersectObjects(pickables, false);
     return hits[0] || null;
   }
@@ -256,37 +273,66 @@ export function createUI({ renderer, camera, scene, room, kerry, ball, audio, sc
     scene.add(s); zs.push({ s, t: 0 });
   };
 
-  // --------------------------------------------------------- tour
-  let tourIdx = -1, tourAudio = null, tourTimer = null;
+  // --------------------------------------------------------- tour (spoken + captioned)
+  const caption = $('#caption');
+  let tourIdx = -1, tourTimer = null, voice = null;
+  const synth = window.speechSynthesis || null;
+  function pickVoice() {
+    if (!synth) return null;
+    const vs = synth.getVoices().filter((v) => /^en(-|_|$)/i.test(v.lang));
+    const prefer = ['Daniel', 'Google UK English Male', 'Arthur', 'Oliver', 'Microsoft Ryan', 'Microsoft Guy', 'Aaron', 'Alex', 'Google US English'];
+    for (const name of prefer) { const v = vs.find((x) => x.name.includes(name)); if (v) return v; }
+    return vs.find((v) => /en-GB/i.test(v.lang)) || vs[0] || null;
+  }
+  if (synth) synth.onvoiceschanged = () => { voice = pickVoice(); };
+  function say(text, done) {
+    caption.textContent = text;
+    caption.classList.add('show');
+    const fallback = () => { tourTimer = setTimeout(done, Math.max(3500, text.split(/\s+/).length * 380)); };
+    if (!synth || !audio.enabled) { fallback(); return; }
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    voice ||= pickVoice();
+    if (voice) u.voice = voice;
+    u.rate = 1.0; u.pitch = 0.92; u.volume = 1;
+    let finished = false;
+    const end = () => { if (finished) return; finished = true; tourTimer = setTimeout(done, 650); };
+    u.onend = end;
+    u.onerror = () => { if (!finished) { finished = true; fallback(); } };
+    // some mobile browsers never fire onend; never get stuck
+    tourTimer = setTimeout(end, Math.max(6000, text.length * 85));
+    synth.speak(u);
+  }
   function stopTour() {
     if (!ui.tour) return;
     ui.tour = null; tourIdx = -1;
-    tourAudio?.pause(); tourAudio = null; clearTimeout(tourTimer);
+    clearTimeout(tourTimer); synth?.cancel();
+    caption.classList.remove('show');
     $('#tour-btn').textContent = 'Tour';
     $('#tour-btn').setAttribute('aria-pressed', 'false');
   }
   function tourStep() {
+    if (!ui.tour) return;
+    clearTimeout(tourTimer);
     tourIdx++;
     if (tourIdx >= TOUR.length) { stopTour(); flyTo(HOME.pos, HOME.target); closePanel(); return; }
     const id = TOUR[tourIdx];
     flyToSpot(id);
     if (SPOTS[id]) openPanel(id); else closePanel();
     if (id === 'soko') enableLive();
-    const name = id === 'intro' ? 'tour-intro' : id === 'outro' ? 'tour-outro' : SPOTS[id]?.audio;
-    const advance = () => { tourTimer = setTimeout(() => ui.tour && tourStep(), 700); };
-    if (name && audio.enabled) {
-      tourAudio = audio.voiceClip(name);
-      tourAudio.onended = advance;
-      tourAudio.onerror = () => { tourTimer = setTimeout(() => ui.tour && tourStep(), 5000); };
-      tourAudio.play().catch(() => { tourTimer = setTimeout(() => ui.tour && tourStep(), 5000); });
-    } else tourTimer = setTimeout(() => ui.tour && tourStep(), 6000);
+    let line = TOUR_LINES[id];
+    if (typeof line === 'function') {
+      const st = (ui.brain?.status || 'around').replace(/^./, (c) => c.toLowerCase()).replace(/ ps5/i, ' PS5').replace(/kerryos/i, 'KerryOS');
+      line = line(st);
+    }
+    say(line, tourStep);
   }
   $('#tour-btn').onclick = () => {
     if (ui.tour) { stopTour(); flyTo(HOME.pos, HOME.target); closePanel(); return; }
     ui.tour = true; tourIdx = -1;
     $('#tour-btn').textContent = 'Stop tour';
     $('#tour-btn').setAttribute('aria-pressed', 'true');
-    if (audio.enabled) { const a = audio.voiceClip('jarvis-tour'); a.onended = tourStep; a.play().catch(tourStep); } else tourStep();
+    tourStep();
   };
   $('#home-btn').onclick = () => { stopTour(); closePanel(); ui.following = false; $('#follow-btn').setAttribute('aria-pressed', 'false'); flyTo(HOME.pos, HOME.target); };
   $('#follow-btn').onclick = () => {
